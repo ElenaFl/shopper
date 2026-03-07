@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-size: 16px;
+  font-family: Open-Sans, sans-serif;
+}
+
+.wrapper {
+  width: 100%;
+  padding-left: 6.6%;
+  padding-right: 6.6%;
+}
+
+.container {
+  max-width: 1248px;
+  margin: 0 auto;
+}
+
+a,
+.btn {
+  cursor: pointer;
+}
+
+a.active {
+  color: #a18a68;
+}
+
+/* Search input base style */
+.search-input {
+  background-color: white;
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+  -webkit-text-fill-color: inherit;
+}
+
+/* Focus style: soft gold background and subtle outline */
+.search-input:focus {
+  background-color: #f6e6b5; /* мягкий золотистый */
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(161, 138, 104, 0.12);
+}
+
+/* WebKit autofill override (Chrome, Edge, Safari) */
+input.search-input:-webkit-autofill,
+input.search-input:-webkit-autofill:hover,
+input.search-input:-webkit-autofill:focus,
+textarea.search-input:-webkit-autofill,
+textarea.search-input:-webkit-autofill:hover,
+textarea.search-input:-webkit-autofill:focus,
+select.search-input:-webkit-autofill,
+select.search-input:-webkit-autofill:hover,
+select.search-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #000 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #f6e6b5 inset !important;
+  box-shadow: 0 0 0px 1000px #f6e6b5 inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Firefox autofill */
+input.search-input:-moz-autofill,
+textarea.search-input:-moz-autofill,
+select.search-input:-moz-autofill {
+  box-shadow: 0 0 0px 1000px #f6e6b5 inset !important;
+  -moz-box-shadow: 0 0 0px 1000px #f6e6b5 inset !important;
+  -moz-text-fill-color: #000 !important;
+}
+
+/* Optional: when using browser-suggested value (history) force same gold */
+.search-input:-internal-autofill-selected {
+  background-color: #f6e6b5 !important;
+}
+
+/* ---- Built-in clear (WebKit) styling: recolor the native cancel button ---- */
+input.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  /* SVG data-uri with dark-gold stroke: #A18A68 --> %23A18A68 */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'><path d='M6 6 L18 18 M6 18 L18 6' stroke='%23A18A68' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.95;
+}
+
+/* Hover/active */
+input.search-input::-webkit-search-cancel-button:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+/* Ensure autofill doesn't override cancel button */
+input.search-input:-webkit-autofill::-webkit-search-cancel-button {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'><path d='M6 6 L18 18 M6 18 L18 6' stroke='%23A18A68' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+
+/* Custom clear SVG styling (if using the custom clear button) */
+.search-clear path {
+  stroke: #a18a68; /* тёмно-золотистый */
+  transition: stroke 150ms ease;
+}
+
+.search-clear:hover path,
+.search-clear:focus path,
+.search-clear:active path {
+  stroke: #7f6b4e; /* чуть темнее при ховере */
+}
+
+/* Hide native cancel if you want to rely only on custom clear: uncomment next line */
+/* input.search-input::-webkit-search-cancel-button { display: none; } */
+
+.shadow-bottom {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+/*счетчик на странице детали товара*/
+
+.counter-button {
+  transition:
+    transform 120ms ease,
+    background-color 160ms ease;
+}
+
+counter-button:active {
+  transform: scale(0.92);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.counter-value {
+  transition:
+  color 160ms ease,
+  transform 120ms ease;
+} 
+
+.counter-disabled .counter-value {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* table  thead, tbody, tr, th, td {
+  margin: 0 !important;
+  padding: 0 !important;
+}  /* убираем util-классы для печати */  */
+
