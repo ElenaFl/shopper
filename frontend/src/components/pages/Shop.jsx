@@ -74,9 +74,13 @@ export const Shop = () => {
               arrowClassName="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4"
             />
             <Select
+              wplaceholder="Select by category"
+              options={categoryOptions}
+              value={selected}
+              onChange={(v) => setSelected(v)}
               wrapperClassName="mb-4"
-              className="w-full py-4 px-3 border border-[#D8D8D8] appearance-none rounded-sm cursor-pointer"
-              arrowClassName="w-4 h-4 absolute top-1/2 right-3 -translate-y-1/2 pointer-events-none"
+              className="w-full py-4 px-3 border border-[#D8D8D8] appearance-none rounded-sm cursor-pointer pr-10"
+              arrowClassName="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4"
             />
             <Trackbar />
             <Toggle nameToggle={"On sale"} />
