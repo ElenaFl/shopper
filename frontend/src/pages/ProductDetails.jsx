@@ -10,11 +10,13 @@ import { categories } from "../../categories.js";
 import { CartContext } from "../context/cart/CartContext.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
 
+const DISABLED_FLAG_KEY = "pd_disabled_flags_v1"; // объект в localStorage: { [productId]: true }
+
 /**
  * Компонент страница ProductDetails.
+ *
+ * Отображает детали продукта.
  */
-
-const DISABLED_FLAG_KEY = "pd_disabled_flags_v1"; // объект в localStorage: { [productId]: true }
 
 export const ProductDetails = () => {
   const { id } = useParams();

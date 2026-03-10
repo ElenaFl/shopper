@@ -13,7 +13,9 @@ import { SearchContext } from "../context/search/SearchContext.jsx";
 const SHOW_ALL_TERMS = ["all categories", "all", "все категории", "все"];
 
 /**
- * Shop — страница каталога. Локальный поиск ПО CATEGORIES: находим категории по title,
+ * Shop — страница каталога.
+ *
+ * Локальный поиск по CATEGORIES: находим категории по title,
  * затем показываем товары с соответствующим category_id.
  */
 export const Shop = () => {
