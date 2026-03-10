@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
-import { Search } from "../ui/Search/Search.jsx";
-import { SearchContext } from "../../context/search/SearchContext";
+import { Search } from "../components/ui/Search/Search.jsx";
+import { SearchContext } from "../context/search/SearchContext";
 import { NavLink } from "react-router-dom";
 
 export const Blog = () => {
@@ -38,7 +38,11 @@ export const Blog = () => {
           {/* карточка */}
           <div className="w-112.5">
             <div className="w-full mb-6">
-              <img className="w-full h-75 object-cover" src="/images/blog12.jpg" alt="watch" />
+              <img
+                className="w-full h-75 object-cover"
+                src="/images/blog12.jpg"
+                alt="watch"
+              />
             </div>
             <div className="mb-1.5 text-sm text-[#707070]">
               Fashion - October 8, 2020
@@ -53,7 +57,11 @@ export const Blog = () => {
           {/* карточка */}
           <div className="w-112.5">
             <div className="w-full mb-6">
-              <img className="w-full h-75 object-cover" src="/images/blog13.jpg" alt="watch" />
+              <img
+                className="w-full h-75 object-cover"
+                src="/images/blog13.jpg"
+                alt="watch"
+              />
             </div>
             <div className="mb-1.5 text-sm text-[#707070]">
               Fashion - October 8, 2020
@@ -68,7 +76,11 @@ export const Blog = () => {
           {/* карточка */}
           <div className="w-112.5">
             <div className="w-full mb-6">
-              <img className="w-full h-75 object-cover" src="/images/blog14.jpg" alt="watch" />
+              <img
+                className="w-full h-75 object-cover"
+                src="/images/blog14.jpg"
+                alt="watch"
+              />
             </div>
             <div className="mb-1.5 text-sm text-[#707070]">
               Fashion - October 8, 2020
@@ -83,7 +95,11 @@ export const Blog = () => {
           {/* карточка */}
           <div className="w-112.5">
             <div className="w-full mb-6">
-              <img className="w-full h-75 object-cover" src="/images/blog15.jpg" alt="watch" />
+              <img
+                className="w-full h-75 object-cover"
+                src="/images/blog15.jpg"
+                alt="watch"
+              />
             </div>
             <div className="mb-1.5 text-sm text-[#707070]">
               Fashion - October 8, 2020

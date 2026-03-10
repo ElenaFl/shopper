@@ -2,29 +2,29 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
-import { Home } from "./components/pages/Home.jsx";
-import { Shop } from "./components/pages/Shop.jsx";
-import { Blog } from "./components/pages/Blog.jsx";
-import { BlogDetails } from "./components/pages/BlogDetails.jsx";
-import { OurStory } from "./components/pages/OurStory.jsx";
-import { Contact } from "./components/pages/Contact.jsx";
-import { Privacy } from "./components/pages/Privacy.jsx";
-import { ProductDetails } from "./components/pages/ProductDetails.jsx";
-import { Cart } from "./components/pages/Cart.jsx";
-import { Checkout } from "./components/pages/Checkout.jsx";
-import { OrderDetails } from "./components/pages/OrderDetails.jsx";
-import { Page404 } from "./components/pages/Page404.jsx";
+import { Home } from "./pages/Home.jsx";
+import { Shop } from "./pages/Shop.jsx";
+import { Blog } from "./pages/Blog.jsx";
+import { BlogDetails } from "./pages/BlogDetails.jsx";
+import { OurStory } from "./pages/OurStory.jsx";
+import { Contact } from "./pages/Contact.jsx";
+import { Privacy } from "./pages/Privacy.jsx";
+import { ProductDetails } from "./pages/ProductDetails.jsx";
+import { Cart } from "./pages/Cart.jsx";
+import { Checkout } from "./pages/Checkout.jsx";
+import { OrderDetails } from "./pages/OrderDetails.jsx";
+import { Page404 } from "./pages/Page404.jsx";
 import App from "./App.jsx";
 import "./index.css";
-import { Account } from "./components/pages/auth/Account.jsx";
-import { AccountLayout } from "./components/pages/auth/AccountLayout.jsx";
-import { AccountDashboard } from "./components/pages/auth/AccountDashboard.jsx";
-import { AccountOrders } from "./components/pages/auth/AccountOrders.jsx";
-import { AccountDownloads } from "./components/pages/auth/AccountDownloads.jsx";
-import { AccountAddresses } from "./components/pages/auth/AccountAddresses.jsx";
-import { AccountDetails } from "./components/pages/auth/AccountDetails.jsx";
-import { AccountLogout } from "./components/pages/auth/AccountLogout.jsx";
-import { ResetPassword } from "./components/pages/auth/ResetPassword.jsx";
+import { Account } from "./pages/auth/Account.jsx";
+import { AccountLayout } from "./pages/auth/AccountLayout.jsx";
+import { AccountDashboard } from "./pages/auth/AccountDashboard.jsx";
+import { AccountOrders } from "./pages/auth/AccountOrders.jsx";
+import { AccountDownloads } from "./pages/auth/AccountDownloads.jsx";
+import { AccountAddresses } from "./pages/auth/AccountAddresses.jsx";
+import { AccountDetails } from "./pages/auth/AccountDetails.jsx";
+import { AccountLogout } from "./pages/auth/AccountLogout.jsx";
+import { ResetPassword } from "./pages/auth/ResetPassword.jsx";
 import { CartProvider } from "./context/cart/CartProvider.jsx";
 import { SearchProvider } from "./context/search/SearchProvider.jsx";
 
@@ -42,7 +42,9 @@ const router = createBrowserRouter([
       { path: "contact", element: <Contact /> },
       { path: "privacy", element: <Privacy /> },
       { path: "account", element: <Account /> },
-      { path: "account-dashboard", element: <AccountLayout />,
+      {
+        path: "account-dashboard",
+        element: <AccountLayout />,
         children: [
           { index: true, element: <AccountDashboard /> },
           { path: "orders", element: <AccountOrders /> },

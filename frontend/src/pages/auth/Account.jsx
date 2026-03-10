@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Tabs } from "../../ui/Tabs/Tabs.jsx";
+import { Tabs } from "../../components/ui/Tabs/Tabs.jsx";
 
 export const Account = () => {
   const [activeCategory, setActiveCategory] = useState("Sign in");
