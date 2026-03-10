@@ -11,7 +11,6 @@ import { Contact } from "./components/pages/Contact.jsx";
 import { Privacy } from "./components/pages/Privacy.jsx";
 import { ProductDetails } from "./components/pages/ProductDetails.jsx";
 import { Cart } from "./components/pages/Cart.jsx";
-import { Categories } from "./components/pages/Categories.jsx";
 import { Checkout } from "./components/pages/Checkout.jsx";
 import { OrderDetails } from "./components/pages/OrderDetails.jsx";
 import { Page404 } from "./components/pages/Page404.jsx";
@@ -40,7 +39,6 @@ const router = createBrowserRouter([
       { path: "blog", element: <Blog /> },
       { path: "blog/:id", element: <BlogDetails /> },
       { path: "story", element: <OurStory /> },
-      { path: "categories", element: <Categories /> },
       { path: "contact", element: <Contact /> },
       { path: "privacy", element: <Privacy /> },
       { path: "account", element: <Account /> },
