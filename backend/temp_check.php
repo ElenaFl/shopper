@@ -1,1 +1,0 @@
-<?php declare(strict_types=1); require __DIR__ . '/vendor/autoload.php'; $app = require __DIR__ . '/bootstrap/app.php';  Illuminate\Support\Facades\Facade::setFacadeApplication($app); try { require __DIR__ . '/routes/api.php'; echo 'OK'; } catch (Throwable $e) { echo 'ERR: ' . get_class($e) . ' - ' . $e->getMessage(); }
