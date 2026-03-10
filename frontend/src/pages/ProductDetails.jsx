@@ -1,14 +1,14 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Counter } from "../../components/ui/Counter/Counter.jsx";
-import { Button } from "../../components/ui/Button/Button.jsx";
-import { Tabs } from "../../components/ui/Tabs/Tabs.jsx";
+import { Counter } from "../components/ui/Counter/Counter.jsx";
+import { Button } from "../components/ui/Button/Button.jsx";
+import { Tabs } from "../components/ui/Tabs/Tabs.jsx";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Autoplay } from "swiper/modules";
-import { data } from "../../../data.js";
-import { categories } from "../../../categories.js";
-import { CartContext } from "../../context/cart/CartContext.jsx";
-import { Card } from "../../components/ui/Card/Card.jsx";
+import { data } from "../../data.js";
+import { categories } from "../../categories.js";
+import { CartContext } from "../context/cart/CartContext.jsx";
+import { Card } from "../components/ui/Card/Card.jsx";
 
 /**
  * Компонент страница ProductDetails.
@@ -363,9 +363,8 @@ export const ProductDetails = () => {
                   diam nonummy nibh euismod tincidunt ut laoreet.{" "}
                 </p>
               </div>
-             
             </div>
-            
+
             {/* правый блок */}
             <div className="w-[46%]">
               <h3 className="mb-3 text-xl text-black">Add a Review</h3>

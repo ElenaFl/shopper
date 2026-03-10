@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card } from "../../components/ui/Card/Card.jsx";
-import { Select } from "../../components/ui/Select/Select.jsx";
-import { Search } from "../../components/ui/Search/Search.jsx";
-import { Trackbar } from "../../components/ui/Trackbar/Trackbar.jsx";
-import { Toggle } from "../../components/ui/Toggle/Toggle.jsx";
-import { data } from "../../../data.js";
-import { categories } from "../../../categories.js";
-import { useDebounce } from "../../hooks/useDebounce.js";
-import { SearchContext } from "../../context/search/SearchContext.jsx";
+import { Card } from "../components/ui/Card/Card.jsx";
+import { Select } from "../components/ui/Select/Select.jsx";
+import { Search } from "../components/ui/Search/Search.jsx";
+import { Trackbar } from "../components/ui/Trackbar/Trackbar.jsx";
+import { Toggle } from "../components/ui/Toggle/Toggle.jsx";
+import { data } from "../../data.js";
+import { categories } from "../../categories.js";
+import { useDebounce } from "../hooks/useDebounce.js";
+import { SearchContext } from "../context/search/SearchContext.jsx";
 
 const SHOW_ALL_TERMS = ["all categories", "all", "все категории", "все"];
 

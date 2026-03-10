@@ -1,29 +1,28 @@
 import React, { useContext, useMemo, useState, useEffect } from "react";
-import { CartContext } from "../../context/cart/CartContext.jsx";
-import { Counter } from "../ui/Counter/Counter.jsx";
-import { Select } from "../ui/Select/Select.jsx";
-import { computeDiscount } from "../../utils/coupons.js";
+import { CartContext } from "../context/cart/CartContext.jsx";
+import { Counter } from "../components/ui/Counter/Counter.jsx";
+import { Select } from "../components/ui/Select/Select.jsx";
+import { computeDiscount } from "../utils/coupons.js";
 
 /**
  * Компонент Корзина для товаров.
  * Отображает содержимое корзины, позволяет менять количество и удалять товары, управлять адресом доставки (страна/город/индекс), рассчитывать стоимость доставки, применять купоны и переходить к оформлению (checkout). Также проводит локальную и серверную валидацию наличия товаров.
  */
 export const Cart = () => {
+  // Код вводимого купона (строка)
+  const [couponCode, setCouponCode] = useState("");
 
- // Код вводимого купона (строка)
-const [couponCode, setCouponCode] = useState("");
+  // Флаг: сейчас идёт попытка применения купона (запрос/ожидание)
+  const [couponApplying, setCouponApplying] = useState(false);
 
-// Флаг: сейчас идёт попытка применения купона (запрос/ожидание)
-const [couponApplying, setCouponApplying] = useState(false);
+  // Объект применённого купона или null (пример: { code, type, value, description, minTotal })
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
-// Объект применённого купона или null (пример: { code, type, value, description, minTotal })
-const [appliedCoupon, setAppliedCoupon] = useState(null);
+  // Сумма скидки в денежном выражении, вычисляется на основе appliedCoupon и subtotal
+  const [discountAmount, setDiscountAmount] = useState(0);
 
-// Сумма скидки в денежном выражении, вычисляется на основе appliedCoupon и subtotal
-const [discountAmount, setDiscountAmount] = useState(0);
-
-// Сообщение об ошибке при применении купона (показывать пользователю)
-const [couponError, setCouponError] = useState("");
+  // Сообщение об ошибке при применении купона (показывать пользователю)
+  const [couponError, setCouponError] = useState("");
 
   //Даёт доступ к cart, removeFromCart, updateQuantity, и некоторым полям/функциям контекста (ctxCountry, ctxShippingCountry, address, setShippingCountry)
   const {
@@ -739,7 +738,7 @@ const [couponError, setCouponError] = useState("");
               />
 
               <div></div>
-              
+
               <div className="font-bold mb-10">
                 <button
                   className="w-full mt-6 border rounded-sm py-4 px-12 hover:bg-black hover:text-white"
@@ -788,4 +787,3 @@ const [couponError, setCouponError] = useState("");
     </>
   );
 };
-

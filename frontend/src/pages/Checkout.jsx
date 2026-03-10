@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Select } from "../ui/Select/Select.jsx";
+import { Select } from "../components/ui/Select/Select.jsx";
 
 export const Checkout = () => {
   return (

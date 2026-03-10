@@ -1,7 +1,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Select } from "../../ui/Select/Select.jsx";
-import { Button } from "../../ui/Button/Button.jsx";
+import { Select } from "../../components/ui/Select/Select.jsx";
+import { Button } from "../../components/ui/Button/Button.jsx";
 
 export const AccountAddresses = () => {
   return (

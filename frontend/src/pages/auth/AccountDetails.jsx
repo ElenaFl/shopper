@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "../../ui/Button/Button.jsx";
+import { Button } from "../../components/ui/Button/Button.jsx";
 
 /**
  * AccountDetails — страница редактирования данных аккаунта

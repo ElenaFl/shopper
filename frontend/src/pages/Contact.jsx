@@ -1,5 +1,5 @@
 import React from "react";
-import { Select } from "../ui/Select/Select.jsx";
+import { Select } from "../components/ui/Select/Select.jsx";
 
 export const Contact = () => {
   return (
@@ -43,17 +43,17 @@ export const Contact = () => {
               arrowClassName="w-4 h-4 absolute top-1/2 -translate-y-1/2 right-0 pointer-events-none"
             />
           </div>
-          </div>
-          <div>
+        </div>
+        <div>
           <textarea
             rows="3"
             placeholder="Message"
             className="w-full mb-24 pb-4 border-b border-[#D8D8D8]"
           />
           <div className="w-125 m-auto">
-          <button className="w-full font-bold py-4 px-57 bg-black text-white hover:bg-white hover:text-black border rounded-sm cursor-pointer">
-            SEND
-          </button>
+            <button className="w-full font-bold py-4 px-57 bg-black text-white hover:bg-white hover:text-black border rounded-sm cursor-pointer">
+              SEND
+            </button>
           </div>
         </div>
       </form>

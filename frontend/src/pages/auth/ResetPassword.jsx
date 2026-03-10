@@ -1,5 +1,5 @@
-import React from 'react'
-import { Button } from '../../ui/Button/Button.jsx'
+import React from "react";
+import { Button } from "../../components/ui/Button/Button.jsx";
 
 export const ResetPassword = () => {
   return (
