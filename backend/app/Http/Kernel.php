@@ -18,23 +18,27 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
 class Kernel extends HttpKernel
 {
     /**
-     * Global HTTP middleware stack.
-     *
-     * These middleware run during every request to your application.
-     *
-     * @var array
+    * управляет middleware приложения:
+    * protected $middleware — глобальные middleware, выполняемые для каждого HTTP-запроса.
+    * protected $middlewareGroups — группы middleware (обычно 'web' и 'api'), которые применяются к маршрутам через группу.
+    * protected $routeMiddleware — отдельные middleware, которые можно назначать по имени на маршруты/контроллеры.
+    * Т.е. задаёт набор middleware — фильтров, которые выполняются при каждом HTTP‑запросе или для групп маршрутов. Они обеспечивают безопасность и поведение приложения: обработку прокси, сессий и cookie, защиту от CSRF, ограничение частоты запросов (throttle) и поддержку Sanctum для SPA (cookie‑аутентификация).
      */
     protected $middleware = [
+        // обрабатывает заголовки прокси (X-Forwarded-For, X-Forwarded-Proto) и позволяет корректно определять IP и scheme, когда приложение за обратным прокси (nginx, load balancer)
         TrustProxies::class,
-        // CORS middleware removed — configure CORS via config/cors.php or the web server if needed
+        // блокирует запросы, когда приложение в режиме обслуживания (php artisan down)
         \Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
+        // проверяет размер тела POST-запроса и возвращает ошибку, если превышен limit
         ValidatePostSize::class,
+        // обрезает пробелы у строковых полей входящих данных
         TrimStrings::class,
+        // преобразует пустые строки в null —  при сохранении в БД
         ConvertEmptyStringsToNull::class,
     ];
 
     /**
-     * The application's route middleware groups.
+     * Middleware группы
      *
      * @var array
      */
@@ -57,9 +61,7 @@ class Kernel extends HttpKernel
     ];
 
     /**
-     * The application's route middleware.
-     *
-     * These may be assigned to groups or used individually.
+     * Route middleware (protected $routeMiddleware)
      *
      * @var array
      */

@@ -2,7 +2,7 @@ import React from "react";
 import { createContext } from "react";
 
 /**
- * CartContext — контекст корзины
+ * CartContext — контекст корзины.
  *
  */
 export const CartContext = createContext({
