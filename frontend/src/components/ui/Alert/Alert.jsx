@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Icon } from "../Icon/Icon.jsx";
- 
+
 //  Стили для variant
 const variantClasses = {
   // info: "border-l-4 border-blue-600 bg-blue-200 text-zinc-800",
@@ -9,25 +9,25 @@ const variantClasses = {
   // success: "border-l-4 border-emerald-600 bg-emerald-200 text-zinc-800",
   success: "border-l-4 border-emerald-600 bg-gray-200 text-zinc-800",
   error: "border-l-4 border-rose-600 bg-rose-200 text-zinc-800",
-  neutral: "border-l-4 border-neutral-600 bg-neutral-200 text-zinc-800"
+  neutral: "border-l-4 border-neutral-600 bg-neutral-200 text-zinc-800",
 };
- 
+
 // Варианты иконок
 const iconVariants = {
   info: <Icon name="info" className="w-6 h-6 text-blue-500" />,
   warning: <Icon name="warning" className="w-6 h-6 text-amber-600" />,
   success: <Icon name="checkmark-outline" className="w-6 h-6 text-gray-600" />,
-  error: <Icon name="error" className="w-6 h-6 text-rose-600" />
+  error: <Icon name="error" className="w-6 h-6 text-rose-600" />,
 };
- 
+
 // Стили для align
 const alignClasses = {
   "top-left": "top-4 left-4",
   "top-right": "top-4 right-4",
   "bottom-left": "bottom-4 left-4",
-  "bottom-right": "bottom-4 right-4"
+  "bottom-right": "bottom-4 right-4",
 };
- 
+
 /**
  * Компонент уведомления.
  * @param {string} props.variant - Вариант компонента (info, warning, success, error) (обязательный).
@@ -43,9 +43,8 @@ export const Alert = ({
   title,
   subtitle,
   align = "bottom-right",
-  onClose
+  onClose,
 }) => {
-  
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => {
@@ -56,7 +55,7 @@ export const Alert = ({
       return () => clearTimeout(timer);
     }
   }, [isOpen, onClose]);
- 
+
   return (
     <div
       id="alert"
@@ -78,4 +77,3 @@ export const Alert = ({
     </div>
   );
 };
- 

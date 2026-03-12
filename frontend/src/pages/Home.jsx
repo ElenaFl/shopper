@@ -37,13 +37,13 @@ export const Home = () => {
     fetch("http://shopper.local/api/categories", { credentials: "include" })
       .then((res) => {
         //логируем в консоли статус ответа
-        console.log("fetch status categories", res.status);
+        // console.log("fetch status categories", res.status);
         //вызывается res.json(), который читает тело ответа и парсит его как JSON
         return res.json();
       })
       //data — результат парсинга JSON (массив JS), передаётся в состояние setCategories.
       .then((categories) => {
-        console.log("fetch categories", categories);
+        // console.log("fetch categories", categories);
         setCategories(categories);
       })
       .catch((err) => console.error("fetch error categories", err));
@@ -52,11 +52,11 @@ export const Home = () => {
   useEffect(() => {
     fetch("http://shopper.local/api/products", { credentials: "include" })
       .then((res) => {
-        console.log("fetch status products", res.status);
+        // console.log("fetch status products", res.status);
         return res.json();
       })
       .then((products) => {
-        console.log("fetch rpoducts", products);
+        // console.log("fetch rpoducts", products);
         setProducts(products);
       })
       .catch((err) => console.error("fetch error products", err));
