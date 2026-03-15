@@ -1,32 +1,39 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Tabs } from "../../components/ui/Tabs/Tabs.jsx";
+import { Select } from "../../components/ui/Select/Select.jsx";
+import { Button } from "../../components/ui/Button/Button.jsx";
 import { useAuth } from "../../context/auth/useAuth.js";
-import { Alert } from "../../components/ui/Alert/Alert.jsx";
 
 /**
  * Компонент Account - UI для входа и регистрации со вкладками (Tabs).
  *
  * 1. Делает POST /api/login и /api/register на бекенд (Laravel) с включёнными cookie (credentials: "include") и CSRF-токеном
- * 2.После успешного ответа обновляет контекст пользователя через fetchUser() и *показывает оповещение.
+ * 2. После успешного ответа обновляет контекст пользователя через fetchUser() и показывает приветствие.
  */
 
 export const Account = () => {
-  //какая вкладка активна ("Sign in" / "Register")
+  // 1. Tabs вкладка активна ("Sign in" / "Register")
   const [activeCategory, setActiveCategory] = useState("Sign in");
-  //индикатор выполнения запроса
+  // 2. Tabs вкладка активна ("Dashboard"...)
+  const [activeDashboard, setActiveDashboard] = useState("Dashboard");
+  // индикатор выполнения запроса
   const [loading, setLoading] = useState(false);
-  //общее текстовое сообщение ошибки (показано сверху)
+  // общее текстовое сообщение ошибки (показано сверху)
   const [error, setError] = useState(null);
-  //объект полевых ошибок (из Laravel validation: errors → { field: [msg] })
+  // объект полевых ошибок (из Laravel validation: errors → { field: [msg] })
   const [formErrors, setFormErrors] = useState({});
 
-  // ф-я очиски поля с текстом ошибки
+  // ф-я для перехода по ссылкам
+  const navigate = useNavigate();
+
+  // получаем API из контекста
+  const { getCsrf, fetchUser, BACKEND, user, setUser, logout } = useAuth();
+
+  // ф-я очистки поля с текстом ошибки
   const clearErrorOnInput = (e) => {
     const name = e.target.name;
-    // убрать общее сообщение
     setError(null);
-    // удалить полевую ошибку для текущего поля, если есть
     if (formErrors && formErrors[name]) {
       setFormErrors((prev) => {
         const next = { ...prev };
@@ -37,99 +44,60 @@ export const Account = () => {
   };
 
   // вспомогательная функция; берёт cookie по имени (используется для XSRF-TOKEN)
-  // getCookie("XSRF-TOKEN")
   const getCookie = (name) => {
-    // в браузере document.cookie возвращает строку всех доступных (не HttpOnly) cookie в виде "a=1; b=2; c=3" (пары разделяются точкой с запятой и, обычно, пробелом).
     const match = document.cookie.match(
-      //поиск coockie с именем XSRF-TOKEN через регулярное выражение
       new RegExp("(^| )" + name + "=([^;]+)"),
     );
-    //возврат декодированного значения XSRF-TOKEN или null
-    //возвращается "abc 123"
     return match ? decodeURIComponent(match[2]) : null;
   };
 
-  // состояние кастомного Alert для успеха (открыт/закрыт)
-  const [alertOpen, setAlertOpen] = useState(false);
-
-  // состояние Alert (содержимое)
-  const [alertProps, setAlertProps] = useState({
-    variant: "success",
-    title: "",
-    subtitle: "",
-  });
-
-  const navigate = useNavigate();
-
-  const { getCsrf, fetchUser, BACKEND } = useAuth();
-
-  // вспомогательная функция; открывает Alert с нужными текстами
-  const showAlert = ({ variant = "success", title = "", subtitle = "" }) => {
-    setAlertProps({ variant, title, subtitle });
-    setAlertOpen(true);
-  };
-
   // валидация на клиенте
-  // isValidName: минимум 2 буквы, только лат/кириллица и пробелы. (Регулярка /^[A-Za-zА-Яа-яЁё\s]{2,}$/)
   const isValidName = (name) => {
     if (!name) return false;
     const trimmed = name.trim();
     return /^[A-Za-zА-Яа-яЁё\s]{2,}$/.test(trimmed);
   };
 
-  // isValidEmail: простая проверка email.
   const isValidEmail = (email) => {
     if (!email) return false;
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  // isValidPassword: проверяет минимальную длину 6. Клиентская валидация — UX-слой, но окончательно проверяет сервер
   const isValidPassword = (password) => {
     return typeof password === "string" && password.length >= 6;
   };
 
   // вспомогательная функция для обработки ошибок ответа сервера (формат Laravel)
   const handleResponseErrors = async (res) => {
-    // парсит JSON ответ
-    // если тело ответа не JSON или отсутствует, считать data = {} и продолжить логику обработки ошибок
     const data = await res.json().catch(() => ({}));
-    //если есть data.errors (формат Laravel - т.е. объект{"errors":{"message":"..."}}..), нормализует их в простой объект и ставит первое сообщение(текстов ошибок по полям может быть несколько) в error
     if (data.errors && typeof data.errors === "object") {
       const flat = {};
       Object.entries(data.errors).forEach(([k, v]) => {
         flat[k] = Array.isArray(v) ? v[0] : String(v);
       });
-      // сохраняет нормализованные полевые ошибки в состояние компонента, чтобы показывать их рядом с input'ами (formErrors.email и т.д.)
       setFormErrors(flat);
-      // берётся первый ключ в объекте flat, это сообщение показывается в общем error-блоке над формой
-      // если flat пустой (маловероятно при data.errors), используется data.message (н-р, "The given data was invalid") или дефолт "Validation error".
       setError(
         flat[Object.keys(flat)[0]] || data.message || "Validation error",
       );
-      return true; // были ошибки
+      return true;
     }
-    // если есть message -ставит его в error
     if (data.message) {
       setError(data.message);
-      // возвращает true, если были обработанные ошибки (чтобы прервать дальнейшую логику).
       return true;
     }
     return false;
   };
 
-  // логика входа (handleSubmit)
+  // логика входа
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // очищает ошибки
     setError(null);
     setFormErrors({});
 
-    // берёт email и password из формы, валидирует
     const form = e.target;
     const email = form.email.value.trim();
     const password = form.password.value;
 
-    // Валидация
     if (!isValidEmail(email)) {
       setError("Please enter a valid email address.");
       return;
@@ -138,39 +106,31 @@ export const Account = () => {
       setError("Password should be at least 6 characters.");
       return;
     }
-    setLoading(true);
 
-    // вызывает getCsrf()
+    setLoading(true);
     try {
-      // ожидание получения CSRF cookie/token с бэка (важно для session-based POST)
       await getCsrf();
       const res = await fetch(`${BACKEND}/api/login`, {
         method: "POST",
-        // отправляет cookies (важно для сессий)
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          // Laravel ожидает этот заголовок, когда используется Sanctum CSRF
           "X-XSRF-TOKEN": getCookie("XSRF-TOKEN"),
         },
         body: JSON.stringify({ email, password }),
       });
 
       if (!res.ok) {
-        // вызывает handleResponseErrors и прекращает выполнение
         const handled = await handleResponseErrors(res);
         if (handled) return;
         throw new Error("Login failed");
       }
-      // парсит JSON (но не использует его), вызывает fetchUser() из контекста для обновления состояния пользователя
-      await res.json().catch(() => null);
-      await fetchUser();
-      // показ уведомления об успехе
-      showAlert({
-        variant: "success",
-        title: "Signed in",
-        subtitle: "You have successfully signed in.",
-      });
+
+      const serverUser = await fetchUser();
+      if (serverUser) {
+        setUser(serverUser);
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || "Login error");
@@ -179,6 +139,7 @@ export const Account = () => {
     }
   };
 
+  // регистрация
   const handleSubmitReg = async (e) => {
     e.preventDefault();
     setError(null);
@@ -190,7 +151,6 @@ export const Account = () => {
     const password = form.password.value;
     const password_confirmation = form.confirmPassword.value;
 
-    // Валидация
     if (!isValidName(name)) {
       setError(
         "Name should be at least 2 letters and contain only letters and spaces.",
@@ -229,14 +189,11 @@ export const Account = () => {
         throw new Error("Registration failed");
       }
 
-      await res.json().catch(() => null);
-      await fetchUser();
-
-      showAlert({
-        variant: "success",
-        title: "Registered",
-        subtitle: "Welcome! You are now signed in.",
-      });
+      const serverUser = await fetchUser();
+      if (serverUser) {
+        setUser(serverUser);
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || "Registration error");
@@ -246,18 +203,11 @@ export const Account = () => {
   };
 
   return (
-    <div className="my-62 max-w-125 mx-auto mb-72">
-      <h1 className="text-[33px] font-medium text-center mb-16">My account</h1>
-      <div className=" w-full p-1 bg-[#EFEFEF] mb-12 rounded-sm">
-        <Tabs
-          categories={["Sign in", "Register"]}
-          activeCategory={activeCategory}
-          onCategoryChange={(category) => setActiveCategory(category)}
-          tabClassName="flex w-full bg-[#EFEFEF] p-1 rounded-sm"
-          tabItemClassName="flex-1 text-center py-4 font-medium rounded-sm"
-          activeClassName="bg-white text-black"
-          inactiveClassName="bg-transparent text-[#707070]"
-        />
+    <div className="my-62 mb-72">
+      <div className="max-w-125 mx-auto">
+        <h1 className="text-[33px] font-medium text-center mb-16">
+          My account
+        </h1>
       </div>
 
       {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
@@ -265,136 +215,396 @@ export const Account = () => {
         {loading ? <div>Loading...</div> : null}
       </div>
 
-      {activeCategory === "Sign in" && (
-        <div className="text-[#707070]" id="sign-content">
-          <form onSubmit={handleSubmit}>
-            <input
-              type="email"
-              name="email"
-              className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-              placeholder="Email*"
-              required
-              onInput={clearErrorOnInput}
-            />
-            {formErrors.email && (
-              <div className="text-red-500 text-sm mb-4">
-                {formErrors.email}
-              </div>
-            )}
-            <input
-              type="password"
-              name="password"
-              className="w-full pb-3 border-b border-[#D8D8D8] mb-4"
-              placeholder="Password*"
-              required
-              onInput={clearErrorOnInput}
-            />
-            {formErrors.password && (
-              <div className="text-red-500 text-sm mb-4">
-                {formErrors.password}
-              </div>
-            )}
-            <div className="w-[27%] flex items-center justify-between gap-x-2 mb-30">
-              <input type="checkbox" id="rememberMe" className="w-4 h-4" />
-              <label htmlFor="rememberMe">Remember me</label>
-            </div>
-            <button
-              type="submit"
-              className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm  cursor-pointer bg-black text-white hover:bg-white hover:text-black"
-              disabled={loading}
-            >
-              Sign in
-            </button>
+      {user ? (
+        <div className="w-full">
+          <Tabs
+            categories={[
+              "Dashboard",
+              "Orders",
+              "Downloads",
+              "Addresses",
+              "Account details",
+              "Logout",
+            ]}
+            activeCategory={activeDashboard}
+            onCategoryChange={(category) => setActiveDashboard(category)}
+            tabClassName="flex list-none gap-12 justify-start border-b border-[#D8D8D8]"
+            tabItemClassName="inline-flex pl-0 items-center justify-center px-4 py-2 text-lg cursor-pointer"
+            activeClassName="text-black border-b-2 border-black"
+            inactiveClassName="text-gray-500"
+          />
 
-            <Link
-              to="#"
-              className="block w-full py-4 px-10 text-center hover:border rounded-sm  cursor-pointer bg-white text-black"
-            >
-              Have you forgotten your password?
-            </Link>
-          </form>
+          {activeDashboard === "Dashboard" && (
+            <div className="mt-10 mb-51">
+              <p>
+                From your account dashboard you can view your{" "}
+                <span className="text-[#A18A68]">recent orders</span>, manage
+                your
+                <span className="text-[#A18A68]">
+                  Lshipping and billing addresses
+                </span>
+                , and edit your{" "}
+                <span className="text-[#A18A68]">
+                  password and account details
+                </span>
+                .
+              </p>
+            </div>
+          )}
+
+          {activeDashboard === "Orders" && (
+            <div className="mt-10 mb-50">
+              <table className="w-full">
+                <thead>
+                  <tr className="pb-4 border-b">
+                    <th className="pb-4 pr-35 text-left">ORDER NUMBER</th>
+                    <th className="pb-4 pr-35 text-left">DATE</th>
+                    <th className="pb-4 pr-35 text-left">STATUS</th>
+                    <th className="pb-4 pr-35 text-left">TOTAL</th>
+                    <th className="pb-4 pr-35 text-left">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-[#D8D8D8] text-[#707070]">
+                    <td className="py-6 text-left">text</td>
+                    <td className="py-6 text-left">text</td>
+                    <td className="py-6 text-left">text</td>
+                    <td className="py-6 text-left">text</td>
+                    <td className="py-6 text-left">text</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeDashboard === "Downloads" && (
+            <div className="mt-10 mb-50">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="pb-4 pr-35">ORDER NUMBER</th>
+                    <th className="pb-4 pr-35">DATE</th>
+                    <th className="pb-4 pr-35">STATUS</th>
+                    <th className="pb-4 pr-35">TOTAL</th>
+                    <th className="pb-4 pr-35">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-[#D8D8D8] text-[#707070] text-left">
+                    <td className="py-6">text</td>
+                    <td className="py-6">text</td>
+                    <td className="py-6">text</td>
+                    <td className="py-6">text</td>
+                    <td className="py-6">text</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeDashboard === "Addresses" && (
+            <div className="mt-10 mb-50">
+              <div className="w-full flex justify-between text-[#707070] mb-62">
+                <div className="w-[46%]">
+                  <h2 className="text-2xl text-black">Billing Details</h2>
+                  <form className="mb-16">
+                    <div className="w-full flex justify-between items-center border-b border-[#D8D8D8]">
+                      <div className="w-[46%] pt-7 pb-3">
+                        <input
+                          type="text"
+                          name="first"
+                          placeholder="First name *"
+                        />
+                      </div>
+                      <div className="w-[46%] pt-7 pb-3">
+                        <input
+                          type="text"
+                          name="last"
+                          placeholder="Last name *"
+                        />
+                      </div>
+                    </div>
+                    <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+                      <input
+                        type="text"
+                        name="company"
+                        placeholder="Company Name"
+                      />
+                    </div>
+                    <Select
+                      className="w-full pt-7 pb-3 border-b border-[#D8D8D8] text-[#c6c2c2]  appearance-none"
+                      arrowClassName="w-[16px] h-[16px] absolute top-[32px] right-3 pointer-events-none"
+                    />
+                    <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+                      <input
+                        type="text"
+                        name="street"
+                        placeholder="Street Address *"
+                      />
+                    </div>
+                    <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+                      <input
+                        type="text"
+                        name="postCode"
+                        placeholder="Postcode / ZIP *"
+                      />
+                    </div>
+                    <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+                      <input
+                        type="text"
+                        name="city"
+                        placeholder="Town / City *"
+                      />
+                    </div>
+                    <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+                      <input type="text" name="phone" placeholder="Phone *" />
+                    </div>
+                    <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+                      <input type="email" name="email" placeholder="Email *" />
+                    </div>
+                  </form>
+                  <div className="w-1/2">
+                    <Button color="black" name="SAVE ADDRESS" />
+                  </div>
+                </div>
+
+                <div className="w-[46%]">
+                  <h2 className="text-2xl text-black pb-7">Shipping Address</h2>
+                  <p className="mb-4 font-bold text-[#A18A68]">ADD</p>
+                  <p className="text-[Y#707070]">
+                    You have not set up this type of address yet.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeDashboard === "Account details" && (
+            <div className="mt-10 mb-50">
+              <form className="max-w-lg">
+                <label className="block mb-4">
+                  <span className="text-sm text-gray-700">Full name</span>
+                  <input
+                    type="text"
+                    name="name"
+                    className="w-full border-b py-2 mt-2 focus:outline-none"
+                    placeholder="Your name"
+                    autoComplete="name"
+                    required
+                  />
+                </label>
+
+                <label className="block mb-4">
+                  <span className="text-sm text-gray-700">Email</span>
+                  <input
+                    type="email"
+                    name="email"
+                    className="w-full border-b py-2 mt-2 focus:outline-none"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+
+                <label className="block mb-4">
+                  <span className="text-sm text-gray-700">
+                    Password (leave blank to keep)
+                  </span>
+                  <input
+                    type="password"
+                    name="password"
+                    className="w-full border-b py-2 mt-2 focus:outline-none"
+                    placeholder="New password"
+                    autoComplete="new-password"
+                  />
+                </label>
+                <div className="w-1/2 mt-10 mb-62">
+                  <Button type="submit" color="black" name="SAVE ADDRESS" />
+                </div>
+              </form>
+            </div>
+          )}
+
+          {activeDashboard === "Logout" && (
+            <div className="mt-10 mb-50">
+              <p className="inline-block text-xl font-medium mb-4 mr-10">
+                <span className="text-[#A18A68]">Log out</span> of your account
+              </p>
+              <div className="inline-block w-34">
+                <Button
+                  color="black"
+                  name="Confirm logout"
+                  onClick={async () => {
+                    try {
+                      await logout(); // разлогин (AuthProvider.logout) — уже не делает redirect
+                      navigate("/", { replace: true }); // внутри SPA — плавный переход на главную
+                    } catch (err) {
+                      console.error("Logout failed", err);
+                      // при необходимости показать ошибку пользователю
+                    }
+                  }}
+                />
+              </div>
+              {/* <button
+                onClick={async () => {
+                  try {
+                    await logout(); // разлогин (AuthProvider.logout) — уже не делает redirect
+                    navigate("/", { replace: true }); // внутри SPA — плавный переход на главную
+                  } catch (err) {
+                    console.error("Logout failed", err);
+                    // при необходимости показать ошибку пользователю
+                  }
+                }}
+                className="inline-block px-4 py-2 border rounded text-white bg-black"
+              > */}
+              {/* Confirm logout
+              </button> */}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mb-51 max-w-125 mx-auto">
+          <div className=" w-full p-1 bg-[#EFEFEF] mb-12 rounded-sm">
+            <Tabs
+              categories={["Sign in", "Register"]}
+              activeCategory={activeCategory}
+              onCategoryChange={(category) => setActiveCategory(category)}
+              tabClassName="flex w-full bg-[#EFEFEF] p-1 rounded-sm"
+              tabItemClassName="flex-1 text-center py-4 font-medium rounded-sm"
+              activeClassName="bg-white text-black"
+              inactiveClassName="bg-transparent text-[#707070]"
+            />
+          </div>
+
+          {activeCategory === "Sign in" && (
+            <div className="text-[#707070]" id="sign-content">
+              <form onSubmit={handleSubmit}>
+                <input
+                  type="email"
+                  name="email"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
+                  placeholder="Email*"
+                  required
+                  onInput={clearErrorOnInput}
+                />
+                {formErrors.email && (
+                  <div className="text-red-500 text-sm mb-4">
+                    {formErrors.email}
+                  </div>
+                )}
+                <input
+                  type="password"
+                  name="password"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-4"
+                  placeholder="Password*"
+                  required
+                  onInput={clearErrorOnInput}
+                />
+                {formErrors.password && (
+                  <div className="text-red-500 text-sm mb-4">
+                    {formErrors.password}
+                  </div>
+                )}
+
+                <div className="w-[27%] flex items-center justify-between gap-x-2 mb-30">
+                  <input type="checkbox" id="rememberMe" className="w-4 h-4" />
+                  <label htmlFor="rememberMe">Remember me</label>
+                </div>
+
+                <button
+                  type="submit"
+                  className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm cursor-pointer bg-black text-white hover:bg-white hover:text-black"
+                  disabled={loading}
+                >
+                  Sign in
+                </button>
+
+                <Link
+                  to="#"
+                  className="block w-full py-4 px-10 text-center hover:border rounded-sm cursor-pointer bg-white text-black"
+                >
+                  Have you forgotten your password?
+                </Link>
+              </form>
+            </div>
+          )}
+
+          {activeCategory === "Register" && (
+            <form onSubmit={handleSubmitReg}>
+              <div className="text-[#707070]" id="additional-information">
+                <input
+                  type="text"
+                  name="name"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
+                  placeholder="Name*"
+                  required
+                  onInput={clearErrorOnInput}
+                />
+                {formErrors.name && (
+                  <div className="text-red-500 text-sm mb-4">
+                    {formErrors.name}
+                  </div>
+                )}
+
+                <input
+                  type="email"
+                  name="email"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
+                  placeholder="Email*"
+                  required
+                  onInput={clearErrorOnInput}
+                />
+                {formErrors.email && (
+                  <div className="text-red-500 text-sm mb-4">
+                    {formErrors.email}
+                  </div>
+                )}
+
+                <input
+                  type="password"
+                  name="password"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
+                  placeholder="Password*"
+                  required
+                  onInput={clearErrorOnInput}
+                />
+                {formErrors.password && (
+                  <div className="text-red-500 text-sm mb-4">
+                    {formErrors.password}
+                  </div>
+                )}
+
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-4"
+                  placeholder="Confirm password*"
+                  required
+                  onInput={clearErrorOnInput}
+                />
+                {formErrors.password_confirmation && (
+                  <div className="text-red-500 text-sm mb-4">
+                    {formErrors.password_confirmation}
+                  </div>
+                )}
+
+                <div className="w-[32%] flex items-center justify-between gap-x-2 mb-4">
+                  <input type="checkbox" id="registerMe" className="w-4 h-4" />
+                  <label htmlFor="registerMe">I agree to Terms</label>
+                </div>
+
+                <button
+                  type="submit"
+                  className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm cursor-pointer bg-black text-white hover:bg-white hover:text-black"
+                  disabled={loading}
+                >
+                  Register
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
-
-      {activeCategory === "Register" && (
-        <form onSubmit={handleSubmitReg}>
-          <div className="text-[#707070]" id="additional-information">
-            <input
-              type="text"
-              name="name"
-              className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-              placeholder="Name*"
-              required
-              onInput={clearErrorOnInput}
-            />
-            {formErrors.name && (
-              <div className="text-red-500 text-sm mb-4">{formErrors.name}</div>
-            )}
-            <input
-              type="email"
-              name="email"
-              className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-              placeholder="Email*"
-              required
-              onInput={clearErrorOnInput}
-            />
-            {formErrors.email && (
-              <div className="text-red-500 text-sm mb-4">
-                {formErrors.email}
-              </div>
-            )}
-            <input
-              type="password"
-              name="password"
-              className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-              placeholder="Password*"
-              required
-              onInput={clearErrorOnInput}
-            />
-            {formErrors.password && (
-              <div className="text-red-500 text-sm mb-4">
-                {formErrors.password}
-              </div>
-            )}
-            <input
-              type="password"
-              name="confirmPassword"
-              className="w-full pb-3 border-b border-[#D8D8D8] mb-4"
-              placeholder="Confirm password*"
-              required
-              onInput={clearErrorOnInput}
-            />
-            {formErrors.password_confirmation && (
-              <div className="text-red-500 text-sm mb-4">
-                {formErrors.password_confirmation}
-              </div>
-            )}
-            <div className="w-[32%] flex items-center justify-between gap-x-2 mb-4">
-              <input type="checkbox" id="registerMe" className="w-4 h-4" />
-              <label htmlFor="registerMe">I agree to Terms</label>
-            </div>
-            <button
-              type="submit"
-              className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm  cursor-pointer bg-black text-white hover:bg-white hover:text-black"
-              disabled={loading}
-            >
-              Register
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Alert */}
-      <Alert
-        variant={alertProps.variant}
-        isOpen={alertOpen}
-        title={alertProps.title}
-        subtitle={alertProps.subtitle}
-        onClose={() => {
-          setAlertOpen(false);
-          setTimeout(() => navigate("/"), 1000);
-        }}
-      />
     </div>
   );
 };

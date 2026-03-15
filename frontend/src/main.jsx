@@ -17,13 +17,6 @@ import { Page404 } from "./pages/Page404.jsx";
 import App from "./App.jsx";
 import "./index.css";
 import { Account } from "./pages/auth/Account.jsx";
-import { AccountLayout } from "./pages/auth/AccountLayout.jsx";
-import { AccountDashboard } from "./pages/auth/AccountDashboard.jsx";
-import { AccountOrders } from "./pages/auth/AccountOrders.jsx";
-import { AccountDownloads } from "./pages/auth/AccountDownloads.jsx";
-import { AccountAddresses } from "./pages/auth/AccountAddresses.jsx";
-import { AccountDetails } from "./pages/auth/AccountDetails.jsx";
-import { AccountLogout } from "./pages/auth/AccountLogout.jsx";
 import { ResetPassword } from "./pages/auth/ResetPassword.jsx";
 import { CartProvider } from "./context/cart/CartProvider.jsx";
 import { SearchProvider } from "./context/search/SearchProvider.jsx";
@@ -43,18 +36,6 @@ const router = createBrowserRouter([
       { path: "contact", element: <Contact /> },
       { path: "privacy", element: <Privacy /> },
       { path: "account", element: <Account /> },
-      {
-        path: "account-dashboard",
-        element: <AccountLayout />,
-        children: [
-          { index: true, element: <AccountDashboard /> },
-          { path: "orders", element: <AccountOrders /> },
-          { path: "downloads", element: <AccountDownloads /> },
-          { path: "addresses", element: <AccountAddresses /> },
-          { path: "details", element: <AccountDetails /> },
-          { path: "logout", element: <AccountLogout /> },
-        ],
-      },
       { path: "reset-password", element: <ResetPassword /> },
       { path: "products/:id", element: <ProductDetails /> },
       { path: "cart", element: <Cart /> },
