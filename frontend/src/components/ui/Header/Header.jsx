@@ -2,12 +2,15 @@ import React, { useState, useContext, useRef, useEffect } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { Search } from "../Search/Search.jsx";
 import { SearchContext } from "../../../context/search/SearchContext.jsx";
+import { useAuth } from "../../../context/auth/useAuth.js";
 
 export const Header = () => {
   const [showSearch, setShowSearch] = useState(false);
   const { query, setQuery } = useContext(SearchContext);
   const location = useLocation();
   const inputRef = useRef(null);
+
+  const { user, checking } = useAuth();
 
   const panelRef = useRef(null);
   const toggleBtnRef = useRef(null);
@@ -95,6 +98,20 @@ export const Header = () => {
                 />
               </svg>
             </Link>
+
+            {!checking && user ? (
+              <div className="h-7 w-70 ml-4 bg-red hidden md:flex items-center">
+                <span
+                  className="text-[#A18A68] h-7 w-70 ml-4 bg-red italic font-serif text-2xl font-light transition-opacity duration-300 opacity-100"
+                  aria-live="polite"
+                >
+                  <span className="mr-1">Welcome,</span>{" "}
+                  {String(user?.name || "").split(" ")[0]}
+                </span>
+              </div>
+            ) : (
+              <div className="h-7 w-70 ml-4 bg-red ml-4 hidden md:flex items-center" />
+            )}
 
             <div className="w-1/2 flex justify-between items-center">
               <nav className="w-1/2 flex justify-between items-center">

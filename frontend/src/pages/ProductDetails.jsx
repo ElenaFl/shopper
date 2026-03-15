@@ -25,7 +25,7 @@ export const ProductDetails = () => {
   const productId = Number(id);
   const product = data.find((item) => item.id === productId);
 
-  // состояние вкладок — хуки должны быть в начале компонента
+  // состояние вкладок
   const [activeCategory, setActiveCategory] = useState("Description");
 
   // Поиск элемента в cart и вычисление начального количества
@@ -283,13 +283,13 @@ export const ProductDetails = () => {
       </div>
 
       {/* нижний блок с Tabs */}
-      <div className="w-[75%] text-xl">
+      <div className="text-xl">
         <Tabs
           categories={["Description", "Additional information", "Reviews(n)"]}
           activeCategory={activeCategory}
           onCategoryChange={(category) => setActiveCategory(category)}
-          tabClassName="flex list-none gap-25 justify-start"
-          tabItemClassName="inline-flex pl-0 items-center justify-center px-4 py-2 text-lg"
+          tabClassName="flex list-none gap-25 justify-start border-b border-[#D8D8D8]"
+          tabItemClassName="inline-flex pl-0 items-center justify-center px-4 py-2 text-lg cursor-pointer"
           activeClassName="text-black border-b-2 border-black"
           inactiveClassName="text-gray-500"
         />

@@ -101,6 +101,8 @@ class AuthController extends Controller
         }
         // при успешном входе регенерируем сессию (session fixation защита) - новый сесионный кукки.
         $request->session()->regenerate();
+
+        $request->session()->save();
         // получаем текущего аутентифицированного пользователя и прячем password/remember_token.
         $user = Auth::user();
         /** @var \App\Models\User $user */
@@ -121,13 +123,16 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        Log::debug('Logout start — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
         // удаляет аутентификацию (session-based)
         try {
             Auth::logout();
             //инвалидирует (очищает) текущую сессию
             $request->session()->invalidate();
+            Log::debug('Logout after invalidate — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
             // генерирует новый CSRF-токен (полезно после logout)
             $request->session()->regenerateToken();
+            Log::debug('Logout after regenerateToken — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
             //логируется предупреждение, но пользователь получит 200 в любом случае
         } catch (\Throwable $e) {
             Log::warning('Logout issue: ' . $e->getMessage());
@@ -138,14 +143,15 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
+        Log::debug('Me called — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
         // получаем текущего аутентифицированного пользователя
         $user = $request->user();
-
         // если неаутентифицирован — 401
         if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
-        // возвращается информацию о пользователе (без полей password и remember_token) с HTTP 200
+        // возвращается информацию о пользователе (безопасно - без полей password и remember_token) с HTTP 200
         return response()->json($user->makeHidden(['password', 'remember_token']), 200);
     }
+
 }

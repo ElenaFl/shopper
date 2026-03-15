@@ -4,19 +4,46 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use Illuminate\Http\Request;
 
-Route::get('/', function () { return view('welcome');});
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Здесь располагаются маршруты, которые используют web middleware group
+| (сессии, cookies, CSRF). Мы размещаем в web.php маршруты аутентификации,
+| чтобы они работали в stateful режиме (cookie-based) с Laravel Sanctum.
+|
+*/
 
-// Маршруты использования файлов cookie CSRF обрабатывается пакетом Sanctum (GET /sanctum/csrf-cookie)
+Route::get('/', function () {
+    return view('welcome');
+});
+
+// Маршрут для фронтенд-логина (возвращает 401 для AJAX/fetch запросов,
+// иначе редиректит на фронтенд страницу аккаунта)
+Route::get('/login', function (Request $request) {
+    if ($request->expectsJson() || $request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest' || $request->is('api/*')) {
+        return response()->json(['message' => 'Unauthenticated.'], 401);
+    }
+
+    return redirect()->away('http://shopper.local:5173/account');
+})->name('login');
+
+/*
+|--------------------------------------------------------------------------
+| Auth (stateful) routes
+|--------------------------------------------------------------------------
+|
+| Размещаем регистрационные и login/logout/user маршруты здесь под префиксом /api,
+| чтобы веб middleware (StartSession, ShareErrorsFromSession и т.д.) применялись к ним,
+| и Auth::logout() корректно работал.
+|
+*/
 Route::post('/api/register', [AuthController::class, 'register']);
 Route::post('/api/login', [AuthController::class, 'login']);
 
-// GET‑маршрут /login. Внутри — анонимная функция (замыкание), которая принимает Request и возвращает либо JSON с 401(запрос не авторизован, потому что клиент не предоставил корректные учётные данные (аутентификация отсутствует или недействительна)), либо редирект на фронтенд.
-//Если запрос ожидает JSON (API/AJAX/fetch) — возвращает 401 JSON { "message": "Unauthenticated." } (чтобы SPA/клиент понял, что нужна авторизация). Иначе (обычный браузерный переход) — редиректит на внешний фронтенд URL http://shopper.local:5173/account.
+Route::prefix('api')->group(function () {
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::get('user', [AuthController::class, 'me']);
+});
 
-Route::get('/login', function (Request $request) {
-    // Если это AJAX/Fetch/CORS запрос — вернёт 401 JSON, чтобы не было редиректа
-    if ($request->expectsJson() || $request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest' || $request->is('api/*')) { return response()->json(['message' => 'Unauthenticated.'], 401); }
-
-// Для обычного браузерного перехода — редиректит на фронтенд URL (away), чтобы не резолвить /account на backend
-return redirect()->away('http://shopper.local:5173/account');
-})->name('login');

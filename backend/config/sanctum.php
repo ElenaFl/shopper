@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost:5173,myshopper.local,localhost,127.0.0.1')),
+    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'shopper.local:5173,localhost:5173,localhost:8000,127.0.0.1')),
 
     /*
     |--------------------------------------------------------------------------
