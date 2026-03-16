@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use App\Models\User;
+use Illuminate\Support\Facades\Cookie;
 
 class AuthController extends Controller
 {
@@ -121,29 +122,31 @@ class AuthController extends Controller
         return response()->json($response, 200);
     }
 
-    public function logout(Request $request)
-    {
-        Log::debug('Logout start — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
-        // удаляет аутентификацию (session-based)
-        try {
-            Auth::logout();
-            //инвалидирует (очищает) текущую сессию
-            $request->session()->invalidate();
-            Log::debug('Logout after invalidate — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
-            // генерирует новый CSRF-токен (полезно после logout)
-            $request->session()->regenerateToken();
-            Log::debug('Logout after regenerateToken — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
-            //логируется предупреждение, но пользователь получит 200 в любом случае
-        } catch (\Throwable $e) {
-            Log::warning('Logout issue: ' . $e->getMessage());
-        }
-        // возвращается 200 OK и сообщение
-        return response()->json(['message' => 'Logged out'], 200);
+    public function logout(Request $request) { // удаляет аутентификацию (session-based) try { Auth::logout(); $request->session()->invalidate(); $request->session()->regenerateToken(); } catch (\Throwable $e) { Log::warning('Logout issue: ' . $e->getMessage()); }
+
+// поставить в очередь удаление куки (Set-Cookie с истёкшей датой)
+Cookie::queue(Cookie::forget('XSRF-TOKEN'));
+
+// Явное формирование истёкшей laravel_session куки с теми же атрибутами, что в config/session.php,
+// чтобы гарантированно удалить session cookie у клиента (включая httponly)
+$expiredSession = Cookie::make(
+    config('session.cookie', 'laravel_session'),
+    null,
+    -2628000,
+    config('session.path', '/'),
+    config('session.domain', null),
+    config('session.secure', false),
+    true,
+    false,
+    config('session.same_site', 'lax')
+);
+Cookie::queue($expiredSession);
+
+return response()->json(['message' => 'Logged out'], 200);
     }
 
     public function me(Request $request)
     {
-        Log::debug('Me called — session id: ' . session()->getId() . ', Auth::id(): ' . (Auth::id() ?? 'null'));
         // получаем текущего аутентифицированного пользователя
         $user = $request->user();
         // если неаутентифицирован — 401
