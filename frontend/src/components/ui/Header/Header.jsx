@@ -1,12 +1,10 @@
-import React, { useState, useContext, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { Search } from "../Search/Search.jsx";
-import { SearchContext } from "../../../context/search/SearchContext.jsx";
 import { useAuth } from "../../../context/auth/useAuth.js";
 
 export const Header = () => {
   const [showSearch, setShowSearch] = useState(false);
-  const { query, setQuery } = useContext(SearchContext);
   const location = useLocation();
   const inputRef = useRef(null);
 
@@ -60,16 +58,16 @@ export const Header = () => {
     };
   }, [showSearch]);
 
-  const handleSubmit = (value) => {
-    const v = (value || "").trim();
-    setQuery(v);
-  };
+  // const handleSubmit = (value) => {
+  //   const v = (value || "").trim();
+  //   setQuery(v);
+  // };
 
-  // Cancel очищает строку, но не закрывает панель
-  const handleCancel = () => {
-    setQuery("");
-    if (inputRef.current) inputRef.current.focus();
-  };
+  // // Cancel очищает строку, но не закрывает панель
+  // const handleCancel = () => {
+  //   setQuery("");
+  //   if (inputRef.current) inputRef.current.focus();
+  // };
 
   return (
     <header className="pt-17 fixed top-0 left-0 right-0 z-40 bg-white ">
@@ -164,7 +162,7 @@ export const Header = () => {
               }`}
             >
               <div className="container p-6">
-                <Search
+                {/* <Search
                   ref={inputRef}
                   value={query}
                   onChange={setQuery}
@@ -174,7 +172,7 @@ export const Header = () => {
                   wrapperClassName="w-full max-w-[90%] mx-auto"
                   inputClassName="w-full"
                   placeholder="Search categories or products..."
-                />
+                /> */}
               </div>
             </div>
           </div>

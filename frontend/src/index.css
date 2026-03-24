@@ -138,16 +138,40 @@ counter-button:active {
 
 .counter-value {
   transition:
-  color 160ms ease,
-  transform 120ms ease;
-} 
+    color 160ms ease,
+    transform 120ms ease;
+}
 
 .counter-disabled .counter-value {
   color: rgba(0, 0, 0, 0.45);
 }
 
-/* table  thead, tbody, tr, th, td {
-  margin: 0 !important;
-  padding: 0 !important;
-}  /* убираем util-классы для печати */  */
+/* плавное появление карточек на странице */
 
+.card-wrapper {
+  animation: fadeIn 0.3s ease-out;
+  /* opacity: 0;
+  transform: translateY(20px) scale(0.98);
+  transition: opacity 1s transform 5s;
+  will-change: opacity, transform; */
+}
+
+/* .card-wrapper.show {
+  opacity: 1;
+  transition-duration: 400ms;
+  transform: translateY(0) scale(1);
+} */
+
+/* .card-wrapper .card-inner {
+  backface-visibility: hidden;
+  transform-origin: center;
+} */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  } /* Начальное состояние — полностью прозрачный */
+  to {
+    opacity: 1;
+  } /* Конечное состояние — полностью видимый */
+}
