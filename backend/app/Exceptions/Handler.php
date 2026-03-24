@@ -7,28 +7,19 @@ use Throwable;
 use Illuminate\Auth\AuthenticationException;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
-/**
-* class Handler - расширяет стандартный ExceptionHandler Laravel. Он отвечает за:
-* логирование (report) исключений;
-* преобразование исключений в HTTP-ответы (render);
-* регистрацию кастомных колбэков renderable/reportable.
-*/
-
 class Handler extends ExceptionHandler
 {
     /**
-     * поле содержит список типов исключений, которые не нужно логировать. Сейчас пусто — все исключения будут логироваться стандартным логгеромd.
+     * Types of exceptions that are not reported.
      *
      * @var array<int, class-string<\Throwable>>
      */
-
-    //
     protected $dontReport = [
         //
     ];
 
     /**
-     * Список полей, которые не будут попадать в «flash» (в сессию) при валидационных исключениях — защищает от утечки паролей в сессии/логах при редиректах после валидации
+     * Inputs that are never flashed for validation exceptions.
      *
      * @var array<int, string>
      */
@@ -43,33 +34,67 @@ class Handler extends ExceptionHandler
      */
     public function register(): void
     {
-        // Для стандартного AuthenticationException — если запрос ожидает JSON или это API — вернуть 401 JSON
-        $this->renderable(function (AuthenticationException $e, $request) {
-            if ($request->expectsJson() || $request->is('api/*') || $request->ajax()) {
-                return response()->json(['message' => $e->getMessage() ?: 'Unauthenticated.'], 401);
-            }
-
-            // Для обычных web-запросов вернём null, чтобы стандартное поведение (редирект) сработало
-            return null;
-        });
-
-        // На всякий случай перехватываем RouteNotFoundException, чтобы API не получали 500 при попытке редиректа
+        // RouteNotFoundException — если попытка редиректа произошла для API-запроса,
+        // вернём JSON 401 вместо 500/HTML
         $this->renderable(function (RouteNotFoundException $e, $request) {
-            if ($request->expectsJson() || $request->is('api/*') || $request->ajax()) {
+            if ($this->isApiRequest($request)) {
                 return response()->json(['message' => 'Unauthenticated.'], 401);
             }
 
             return null;
         });
+
+        // Альтернатива: дополнительные renderable для других исключений можно добавить здесь.
     }
 
+    /**
+     * Customize reporting (delegates to parent by default).
+     */
     public function report(Throwable $exception)
     {
         parent::report($exception);
     }
 
+    /**
+     * Render an exception into an HTTP response (delegates to parent).
+     */
     public function render($request, Throwable $exception)
     {
         return parent::render($request, $exception);
+    }
+
+    /**
+     * Override unauthenticated to ensure API requests always receive JSON 401.
+     */
+    protected function unauthenticated($request, AuthenticationException $exception)
+    {
+        if ($this->isApiRequest($request)) {
+            return response()->json(['message' => $exception->getMessage() ?: 'Unauthenticated.'], 401);
+        }
+
+        return redirect()->guest(route('login'));
+    }
+
+    /**
+     * Helper: определяет, является ли запрос API/AJAX и должен ли возвращаться JSON.
+     */
+    protected function isApiRequest($request): bool
+    {
+        // Обычные проверки: expectsJson, wantsJson, Accept header или маршрут api/*
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return true;
+        }
+
+        $accept = (string) $request->header('Accept', '');
+        if (str_contains($accept, 'application/json') || str_contains($accept, 'application/vnd.api+json')) {
+            return true;
+        }
+
+        // Маршруты, начинающиеся с /api
+        if ($request->is('api/*')) {
+            return true;
+        }
+
+        return false;
     }
 }

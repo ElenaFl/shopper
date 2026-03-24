@@ -1,10 +1,8 @@
 import React, { useContext } from "react";
 import { Search } from "../components/ui/Search/Search.jsx";
-import { SearchContext } from "../context/search/SearchContext";
 import { NavLink } from "react-router-dom";
 
 export const Blog = () => {
-  const { query, setQuery } = useContext(SearchContext);
   return (
     <div className="mt-55 mb-62">
       <h1 className="text-[33px] font-medium mb-9">Blog</h1>
@@ -13,11 +11,11 @@ export const Blog = () => {
         {/* левый блок */}
         <div className="w-[21%]">
           <div className="mb-16">
-            <Search
+            {/* <Search
               value={query}
               onChange={setQuery}
               onSubmit={(v) => setQuery(v)}
-            />
+            /> */}
           </div>
           <h3 className="text-xl mb-11">Categories</h3>
           <nav className="flex flex-col text-[#707070]">

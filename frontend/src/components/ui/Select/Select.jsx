@@ -49,11 +49,8 @@ export const Select = ({
           value={value ?? ""}
           {...rest}
         >
-          {placeholder ? (
-            <option value="" disabled>
-              {" "}
-              {placeholder}{" "}
-            </option>
+          {placeholder && !opts.find((o) => String(o.value) === "") ? (
+            <option value="">{placeholder}</option>
           ) : null}
           {opts.map((opt) => (
             <option

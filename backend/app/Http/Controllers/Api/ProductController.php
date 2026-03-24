@@ -3,59 +3,72 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Http\Resources\ProductResource;
 
 class ProductController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List products with optional filters, sort and pagination.
+     * Query params: per_page (default 24), page, category_id, search, sort (newest|price_asc|price_desc|popular)
      */
-   public function index(Request $request)
-{
-    $query = DB::table('products')->select('*');
-
-    if ($request->has('category_id')) {
-        $query->where('category_id', $request->query('category_id'));
-    }
-
-    $products = $query->get();
-    return response()->json($products);
-}
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function index(Request $request)
     {
-        //
-    }
+        $perPage = (int) $request->query('per_page', 24);
+        $sort = $request->query('sort', 'newest');
+        $categoryId = $request->query('category_id');
+        $search = (string) $request->query('search', '');
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        $product = DB::table('products')->where('id', $id)->first();
-        if (! $product) {
-            return response()->json(['message' => 'Not Found'], 404);
+        // Eloquent query, with category relation
+        $query = Product::query()->with('category');
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
         }
-        return response()->json($product);
+
+        if ($search !== '') {
+            $s = trim(mb_substr($search, 0, 200));
+            $query->where(function ($q) use ($s) {
+                $q->where('title', 'like', "%{$s}%")
+                  ->orWhere('description', 'like', "%{$s}%");
+            });
+        }
+
+        switch ($sort) {
+            case 'popular':
+                // сервер может сортировать по служебному полю, но не отдавать его в публичном ресурсе
+                $query->orderByDesc('popularity_score')->orderByDesc('sales_count');
+                break;
+            case 'price_asc':
+                $query->orderBy('price', 'asc');
+                break;
+            case 'price_desc':
+                $query->orderBy('price', 'desc');
+                break;
+            case 'newest':
+            default:
+                $query->orderByDesc('created_at');
+                break;
+        }
+
+        if ($perPage > 0) {
+            $paginator = $query->paginate($perPage);
+            return ProductResource::collection($paginator);
+        }
+
+        return ProductResource::collection($query->get());
     }
 
     /**
-     * Update the specified resource in storage.
+     * Show single product (route model binding).
+     * Route must be /products/{product} and method signature Product $product
      */
-    public function update(Request $request, string $id)
+    public function show(Product $product)
     {
-        //
-    }
+        // load category relation if not already loaded
+        $product->loadMissing('category');
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return new ProductResource($product);
     }
 }

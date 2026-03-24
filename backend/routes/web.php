@@ -39,11 +39,12 @@ Route::get('/login', function (Request $request) {
 | и Auth::logout() корректно работал.
 |
 */
-Route::post('/api/register', [AuthController::class, 'register']);
-Route::post('/api/login', [AuthController::class, 'login']);
+
 
 Route::prefix('api')->group(function () {
-    Route::post('logout', [AuthController::class, 'logout']);
-    Route::get('user', [AuthController::class, 'me']);
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'me']);
 });
 

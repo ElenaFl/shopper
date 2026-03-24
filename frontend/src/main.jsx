@@ -19,7 +19,6 @@ import "./index.css";
 import { Account } from "./pages/auth/Account.jsx";
 import { ResetPassword } from "./pages/auth/ResetPassword.jsx";
 import { CartProvider } from "./context/cart/CartProvider.jsx";
-import { SearchProvider } from "./context/search/SearchProvider.jsx";
 import { AuthProvider } from "./context/auth/AuthProvider.jsx";
 
 // Определение маршрутов
@@ -50,10 +49,7 @@ createRoot(document.getElementById("root")).render(
   //глобальные провайдеры обеспечивают доступность контекста во всём приложении
   <AuthProvider>
     <CartProvider>
-      <SearchProvider>
         <RouterProvider router={router} />
-      </SearchProvider>
     </CartProvider>
-    ,
-  </AuthProvider>,
+  </AuthProvider>
 );

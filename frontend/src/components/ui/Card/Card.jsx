@@ -4,24 +4,22 @@ import { Link } from "react-router-dom";
 /**
  * Компонент карточка.
  *
- * @param {object} props.details - Детали карточки.
- * @param {string} props.details.title - Наименование товара.
- * @param {string} props.details.currency - Валюта.
- * @param {number} props.details.price - Цена.
- * @param {number} props.details.img - Путь к изображению.
- * @param {number} props.size - Размеры карточки и зображения.
- * @param {number} props.size.width - Ширина карточки.
- * @param {number} props.size.height - Высота карточки.
- * @param {number} props.size.widthImg - Ширина изображения.
- * @param {number} props.size.heightImg - Высота изображения.
- * @param {} props.onOpenDetails - Функция-колбэк для обработки клика по карточке.
+ * props.details — объект товара
+ * props.size — размеры
+ * props.onOpenDetails — колбэк открытия
+ * props.className, props.style — дополнительный класс/стиль (для анимации)
  */
-export const Card = (props) => {
-  const { id, title, currency, price, img } = props.details;
-  const { width, height, heightImg } = props.size;
+export const Card = React.memo((props) => {
+  const { id, title, currency, price, img } = props.details || {};
+  const { width, height, heightImg } = props.size || {};
+  const { className = "", style = {}, onOpenDetails } = props;
 
   return (
-    <div style={{ width: `${width}px`, height: `${height}px` }} className="cursor-pointer">
+    <div
+      className={`cursor-pointer ${className}`}
+      style={{ width: `${width}px`, height: `${height}px`, ...style }}
+      onClick={() => onOpenDetails && onOpenDetails(id)}
+    >
       {/* Блок изображения с наложением */}
       <div
         style={{ height: `${heightImg}px` }}
@@ -33,26 +31,31 @@ export const Card = (props) => {
         )}
 
         {/* Прозрачная белая вуаль (появляется при наведении) */}
-        <div className="
-          absolute
-          inset-0
-          bg-white/60
-          opacity-0
-          group-hover:opacity-100
-          transition-opacity
-          duration-300
-        " />
+        <div
+          className="
+            absolute
+            inset-0
+            bg-white/60
+            opacity-0
+            group-hover:opacity-100
+            transition-opacity
+            duration-300
+          "
+        />
 
-        {/* Иконки поверх вуали */}
-        <div className="flex items-center gap-x-7.5 absolute top-1/2 left-1/2  -translate-x-1/2 -translate-y-1/2 opacity-0 transition duration-300 group-hover:opacity-100 group-hover:scale-105
-        ">
+        {/* Иконки над вуалью */}
+        <div className="flex items-center gap-x-7.5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition duration-300 group-hover:opacity-100 group-hover:scale-105">
           <Link to="/cart" className="btn">
             <img src="/images/shoppingCart.svg" alt="shopping-cart" />
           </Link>
-          <Link to={`/products/${id}`} className="btn">
+          <Link
+            to={`/products/${id}`}
+            className="btn"
+            onClick={(e) => e.stopPropagation()}
+          >
             <img src="/images/eye.svg" alt="eye" />
           </Link>
-          <Link to="" className="btn">
+          <Link to="" className="btn" onClick={(e) => e.stopPropagation()}>
             <img src="/images/heart.svg" alt="heart" />
           </Link>
         </div>
@@ -63,10 +66,8 @@ export const Card = (props) => {
 
       {/* Цена */}
       <span className="text-xl font-medium" style={{ color: "#A18A68" }}>
-        {currency} {price.toFixed(2)}
+        {currency} {Number(price || 0).toFixed(2)}
       </span>
     </div>
   );
-};
-
-
+});

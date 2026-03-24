@@ -9,8 +9,15 @@ import React, { forwardRef } from "react";
 
 //forwardRef принимает ref от родителя и пробрасывает его внутрь (в input).
 export const Search = forwardRef(function Search(
-  { value="", onChange=()=>{}, onSubmit=()=>{}, placeholder="", wrapperClassName="", inputClassName="" },
-  ref
+  {
+    value = "",
+    onChange = () => {},
+    onSubmit = () => {},
+    placeholder = "",
+    wrapperClassName = "",
+    inputClassName = "",
+  },
+  ref,
 ) {
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -19,23 +26,23 @@ export const Search = forwardRef(function Search(
     }
   };
   return (
-    <div className={`relative z-50 ${wrapperClassName || "w-full"}`}>
-  {/* Иконка поиска слева */}
-  <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-    <img src="/images/searchHeader.svg" alt="search" className="w-4 h-4" />
-  </span>
+    <div className={`relative  ${wrapperClassName || "w-full"}`}>
+      {/* Иконка поиска слева */}
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+        <img src="/images/searchHeader.svg" alt="search" className="w-4 h-4" />
+      </span>
 
-  {/* input с отступом слева */}
-  <input
-    ref={ref}
-    type="search"
-    value={value}
-    onChange={(e)=>onChange(e.target.value)}
-    onKeyDown={handleKeyDown}
-    placeholder={placeholder}
-    className={`${inputClassName || "w-full"} search-input text-sm text-[#707070] px-3 py-2 border rounded pl-10`}
-    aria-label="Search"
-  />
-</div>
+      {/* input с отступом слева */}
+      <input
+        ref={ref}
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={`${inputClassName || "w-full"} search-input text-sm text-[#707070] px-3 py-2 border rounded pl-10`}
+        aria-label="Search"
+      />
+    </div>
   );
 });

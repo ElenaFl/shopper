@@ -1,101 +1,86 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { SwiperComponent } from "../components/ui/SwiperComponent/SwiperComponent.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
+import { Search } from "../components/ui/Search/Search.jsx";
 //статический массив продуктов из data.js
 // import { data } from "../../data.js";
 //статический массив категорий из categories.js
 // import { categories } from "../../categories.js";
-import { SearchContext } from "../context/search/SearchContext.jsx";
+import { useDebounce } from "../hooks/useDebounce.js";
 
 // массив строк, при вводе которых в поисковую строку отображаются все продукты
 const showAllTerms = ["all categories", "all", "все категории", "все"];
 
 /**
- * Страица Номе.
+ * Страница Home.
  *
- * Глобальный поиск по PRODUCTS и CATEGORIES: находим товары по title, а также категории по title, а затем показываем товары из выбранной категории по соответствующим category_id.
+ * Поисковая строка  отправляет запрос на бэкенд (search), фильтрация по категориям/title на бэке.
  */
 
 export const Home = () => {
-  //инициализация состояния массива categories, обновляется после fetch
-  const [categories, setCategories] = useState([]);
-  //инициализация состояния массива products, обновляется после fetch
-  const [products, setProducts] = useState([]);
+  // локальный state для поиска
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 750);
 
-  //вызов хука вазвращает ф-ю, кот позволяет программно переходить на др марш-т без  клика по ссылке
+  // состояния
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 550);
+    return () => clearTimeout(t);
+  }, []);
+
   const navigate = useNavigate();
 
-  //берём текст из поискового запроса
-  const { query } = useContext(SearchContext);
-
-  //объявляем и присваиваем ф-ю для нормализации текста из поисковой строки, для сравнения
-  const normalized = (s) => (s || "").toLowerCase().trim();
-
+  // загрузка продуктов — учитывает debouncedQuery и запрашивает бэкенд с search
   useEffect(() => {
-    //метод отправляет HTTP GET-запрос по указанному URL; опция- credentials: "include" - для обмена клиента и сервера кукками
-    fetch("http://shopper.local/api/categories", { credentials: "include" })
-      .then((res) => {
-        //логируем в консоли статус ответа
-        // console.log("fetch status categories", res.status);
-        //вызывается res.json(), который читает тело ответа и парсит его как JSON
-        return res.json();
-      })
-      //data — результат парсинга JSON (массив JS), передаётся в состояние setCategories.
-      .then((categories) => {
-        // console.log("fetch categories", categories);
-        setCategories(categories);
-      })
-      .catch((err) => console.error("fetch error categories", err));
-  }, []);
+    const abortController = new AbortController();
+    const fetchProducts = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        // если введён поисковый запрос и он не является "show all"
+        const q = (debouncedQuery || "").toLowerCase().trim();
+        if (q && !showAllTerms.includes(q)) {
+          params.append("search", debouncedQuery);
+        }
 
-  useEffect(() => {
-    fetch("http://shopper.local/api/products", { credentials: "include" })
-      .then((res) => {
-        // console.log("fetch status products", res.status);
-        return res.json();
-      })
-      .then((products) => {
-        // console.log("fetch rpoducts", products);
-        setProducts(products);
-      })
-      .catch((err) => console.error("fetch error products", err));
-  }, []);
-
-  // создаём экз-р класса Map(объект-коллекция)
-  const categoriesMap = new Map();
-  //в перемен записываем пары из массива категорий: 1=>{id:1, title:"..."}
-  categories.forEach((c) => categoriesMap.set(c.id, c));
-
-  //переменная сохраняет нормализованный текст для фильтрации товаров(категорий товаров)
-  const q = normalized(query);
-
-  //переменная для сохранения массива отфильтрованных товаров по запросу
-  let filtered = [];
-
-  //если текст в поисковой строке отсутствует
-  if (!q) {
-    //отображаются все товары
-    filtered = products;
-    //или если поисковый запрос содержит текст из массива showAllTerms
-  } else if (showAllTerms.includes(q)) {
-    //отображаются все товары
-    filtered = products;
-    //иначе происходит фильтрация товаров по наименованию и по наименованию категории
-  } else {
-    //берется элемент массива data (объект, содержащий сведния о товаре) и фильтруется с пом функции-предиката, кот возвр true или false
-    filtered = products.filter((item) => {
-      //наименование товара приводится к ниж регистру и проверяется на содержание текста запроса (если наименования у товара нет, оно считается ""), если содержит запрос, сохраняется в переменную
-      const titleMatch = (item.title || "").toLowerCase().includes(q);
-      //у проверяемого товара берется номер категории с пом categoriesMap.get(item.category_id)?.title устанавливается наименование категории (или "", если не указана)
-      const catTitle = (categoriesMap.get(item.category_id)?.title || "")
-        .toLowerCase()
-        //если наименование категории содержит текст поискового запроса, товар сохраняется в переменную
-        .includes(q);
-      //если совпадение найдено в наименовании товара или в наименовании категории, предикат возвращает true — товар попадёт в filtered
-      return titleMatch || catTitle;
-    });
-  }
+        const url =
+          "http://shopper.local/api/products" +
+          (params.toString() ? `?${params.toString()}` : "");
+        const res = await fetch(url, {
+          credentials: "include",
+          signal: abortController.signal,
+        });
+        if (!res.ok) throw new Error("Network response was not ok");
+        const json = await res.json();
+        if (Array.isArray(json)) {
+          setProducts(json);
+        } else if (json && Array.isArray(json.data)) {
+          setProducts(json.data);
+        } else {
+          setProducts(json.data || []);
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("fetch error products", err);
+          setError("Failed to load products");
+          setProducts([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+    return () => {
+      abortController.abort();
+    };
+  }, [debouncedQuery]);
 
   return (
     <>
@@ -111,22 +96,43 @@ export const Home = () => {
         </NavLink>
       </div>
 
+      <div className="mt-6 mb-6">
+        <Search
+          value={query}
+          onChange={setQuery}
+          onSubmit={(v) => setQuery(v)}
+          onCancel={() => setQuery("")}
+          wrapperClassName="w-full"
+          inputClassName="w-full"
+          placeholder="Search products or categories"
+        />
+      </div>
+
       <div className="mt-10 mb-62.5 flex justify-start flex-wrap gap-13">
-        {filtered && filtered.length > 0 ? (
-          filtered.map((product) => (
-            <Card
-              details={product}
+        {loading ? (
+          <div className="w-full text-center py-16 text-gray-500">
+            Loading...
+          </div>
+        ) : error ? (
+          <div className="w-full text-center py-16 text-red-500">{error}</div>
+        ) : products && products.length > 0 ? (
+          products.map((product, i) => (
+            <div
               key={product.id}
-              onOpenDetails={() => navigate(`/card-details/${product.id}`)}
-              size={{
-                width: 380,
-                height: 472,
-                heightImg: 380,
+              className={`card-wrapper ${mounted ? "show" : ""}`}
+              style={{
+                transitionDelay: `${Math.min(i * 80)}ms`,
               }}
-            />
+            >
+              <Card
+                details={product}
+                onOpenDetails={() => navigate(`/products/${product.id}`)}
+                size={{ width: 380, height: 472, heightImg: 380 }}
+              />
+            </div>
           ))
         ) : (
-          <div className="w-full text-center py-16 text-gray-500">
+          <div className="w-full текст-center py-16 text-gray-500">
             No products found
           </div>
         )}

@@ -55,6 +55,7 @@ class Kernel extends HttpKernel
         'api' => [
             // Keep EnsureFrontendRequestsAreStateful for Sanctum session authentication
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            //подключает rate limiting (ограничение числа запросов)
             'throttle:api',
             SubstituteBindings::class,
         ],
