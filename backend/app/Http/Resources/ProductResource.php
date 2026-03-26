@@ -49,6 +49,7 @@ class ProductResource extends JsonResource
             'sales_count'      => (int) ($this->sales_count ?? 0),
             'reviews_count'    => (int) ($this->reviews_count ?? 0),
             'rating'           => $this->rating !== null ? (float) $this->rating : null,
+            'reviews' => ReviewResource::collection($this->whenLoaded('reviews')),
             'popularity_score' => (float) ($this->popularity_score ?? 0),
             'discount' => $this->when($discountModel, function () use ($discountModel, $priceAfterFormatted) {
                 return [
