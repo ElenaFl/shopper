@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Category;
+use App\Models\Discount;
 
 class Product extends Model
 {
@@ -29,7 +30,7 @@ class Product extends Model
         'rating' => 'float',
         'popularity_score' => 'float',
         'is_popular' => 'boolean',
-        'price' => 'float',
+        'price' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -65,6 +66,27 @@ class Product extends Model
         return $query->orderByDesc('popularity_score')
                     ->orderByDesc('sales_count')
                     ->limit($limit);
+    }
+
+    public function discounts()
+    {
+        return $this->hasMany(Discount::class, 'sku', 'sku');
+    }
+
+    public function activeDiscount()
+    {
+        if ($this->relationLoaded('discounts')) {
+            foreach ($this->discounts as $d) {
+                if ($d->isActive()) return $d;
+            }
+            return null;
+        }
+
+        return Discount::where('sku', $this->sku)
+                ->where('active', true)
+                ->where(function($q){ $now = now(); $q->whereNull('starts_at')->orWhere('starts_at','<=',$now); })
+                ->where(function($q){ $now = now(); $q->whereNull('ends_at')->orWhere('ends_at','>=',$now); })
+                ->orderByDesc('id')->first();
     }
 
     /**
