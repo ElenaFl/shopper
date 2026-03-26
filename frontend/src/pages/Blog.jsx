@@ -35,9 +35,9 @@ export const Blog = () => {
         <div className="w-[76%] flex items-center justify-between flex-wrap gap-x-10 gap-y-16">
           {/* карточка */}
           <div className="w-112.5">
-            <div className="w-full mb-6">
+            <div className="w-full h-120 mb-6">
               <img
-                className="w-full h-75 object-cover"
+                className="w-full h-full object-cover"
                 src="/images/blog12.jpg"
                 alt="watch"
               />
@@ -54,10 +54,10 @@ export const Blog = () => {
           </div>
           {/* карточка */}
           <div className="w-112.5">
-            <div className="w-full mb-6">
+            <div className="w-full h-120 mb-6">
               <img
-                className="w-full h-75 object-cover"
-                src="/images/blog13.jpg"
+                className="w-full h-full object-cover"
+                src="/images/blog02.jpg"
                 alt="watch"
               />
             </div>
@@ -73,10 +73,10 @@ export const Blog = () => {
           </div>
           {/* карточка */}
           <div className="w-112.5">
-            <div className="w-full mb-6">
+            <div className="w-full h-120 mb-6">
               <img
-                className="w-full h-75 object-cover"
-                src="/images/blog14.jpg"
+                className="w-full h-full  object-cover"
+                src="/images/blog03.jpg"
                 alt="watch"
               />
             </div>
@@ -92,9 +92,9 @@ export const Blog = () => {
           </div>
           {/* карточка */}
           <div className="w-112.5">
-            <div className="w-full mb-6">
+            <div className="w-full h-120 mb-6">
               <img
-                className="w-full h-75 object-cover"
+                className="w-full h-full object-cover"
                 src="/images/blog15.jpg"
                 alt="watch"
               />
