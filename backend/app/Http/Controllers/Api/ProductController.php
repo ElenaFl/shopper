@@ -150,17 +150,15 @@ class ProductController extends Controller
         return ProductResource::collection($items);
     }
 
-    public function show(Product $product)
+
+   public function show(Product $product)
     {
-        $product->loadMissing('category');
+        // атомарно увеличим поле views
+        $product->increment('views');
 
-        IncrementProductViews::dispatch($product->id);
-
-        $discountModel = $product->activeDiscount();
-        if ($discountModel) {
-            $product->setRelation('discounts', collect([$discountModel]));
-        }
-
+        // загрузим нужные отношения и вернем ресурс
+        $product->load(['reviews.user', 'category', 'discounts']);
         return new ProductResource($product);
     }
+
 }
