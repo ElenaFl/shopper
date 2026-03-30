@@ -13,6 +13,23 @@ function getXsrf() {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
+const CURRENCY_SYMBOLS = { USD: "$", RUB: "₽", EUR: "€", GBP: "£" };
+function currencySymbolFromCode(code) {
+  if (!code) return null;
+  return CURRENCY_SYMBOLS[String(code).toUpperCase()] || code;
+}
+
+function resolveImgUrl(p) {
+  if (!p) return null;
+  if (p.img_url) return p.img_url;
+  if (!p.img) return null;
+  const img = String(p.img).replace(/^\/+/, "");
+  if (img.startsWith("images/")) {
+    return `${window.location.origin}/${img}`;
+  }
+  return `${window.location.origin}/storage/${img}`;
+}
+
 function apiFetch(path, opts = {}) {
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
   const headers = {
@@ -51,7 +68,7 @@ export const Admin = () => {
   const [productsMeta, setProductsMeta] = useState(null);
   const [categories, setCategories] = useState([]);
 
-  // Create form state (adjusted to your field names)
+  // Create form state (use currency codes)
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -310,9 +327,9 @@ export const Admin = () => {
                 <td>{p.id}</td>
                 <td>{p.title}</td>
                 <td>
-                  {p.img ? (
+                  {resolveImgUrl(p) ? (
                     <img
-                      src={p.img}
+                      src={resolveImgUrl(p)}
                       alt={p.title}
                       style={{
                         width: 64,
@@ -337,7 +354,10 @@ export const Admin = () => {
                 <td>
                   {typeof p.price === "number" ? p.price.toFixed(2) : p.price}
                 </td>
-                <td>{p.currency ?? p.currency_code ?? "—"}</td>
+                <td>
+                  {(p.currency_symbol ?? currencySymbolFromCode(p.currency)) ||
+                    "—"}
+                </td>
                 <td>
                   {p.discount
                     ? p.discount.type === "percent"
@@ -376,13 +396,13 @@ export const Admin = () => {
 
       const formData = new FormData();
       formData.append("title", createForm.title);
-      formData.append("category_id", createForm.category_id);
-      formData.append("price", createForm.price);
-      formData.append("sku", createForm.sku || "");
+      formData.append("category_id", String(createForm.category_id));
+      formData.append("price", String(createForm.price));
+      if (createForm.sku) formData.append("sku", createForm.sku);
       formData.append("description", createForm.description || "");
-      formData.append("weight", createForm.weight || "");
-      formData.append("material", createForm.material || "");
-      formData.append("colours", createForm.colours || "");
+      if (createForm.weight) formData.append("weight", createForm.weight);
+      if (createForm.material) formData.append("material", createForm.material);
+      if (createForm.colours) formData.append("colours", createForm.colours);
       formData.append("is_popular", createForm.is_popular ? "1" : "0");
       formData.append("currency", createForm.currency || "USD");
       if (createForm.img) formData.append("img", createForm.img);
@@ -392,6 +412,7 @@ export const Admin = () => {
         credentials: "include",
         headers: {
           Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
           "X-XSRF-TOKEN": getXsrf(),
         },
         body: formData,
@@ -416,13 +437,18 @@ export const Admin = () => {
 
       const createdJson = await res.json().catch(() => null);
       const created = createdJson?.data ?? createdJson ?? null;
-      const createdSku = created?.sku ?? createForm.sku ?? null;
+
+      // If API returns img_url / img_thumb_url, you may use them when refreshing UI
+      if (created) {
+        // Optionally insert created item into products list for immediate feedback
+        // setProducts(prev => [created, ...prev]); // if desired
+      }
 
       // If discount specified - create discount (best-effort)
       if (createForm.discount && Number(createForm.discount) > 0) {
         try {
           const discountPayload = {
-            sku: (createdSku || "").toString(),
+            sku: (created?.sku || createForm.sku || "").toString(),
             type: "percent",
             value: Number(createForm.discount),
             currency: createForm.currency || "USD",

@@ -2,64 +2,87 @@
 
 namespace App\Http\Resources;
 
-use App\Http\Resources\CategoryResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ProductResource extends JsonResource
 {
+    protected function resolveImage(string|null $raw): array
+    {
+        if (! $raw) {
+            return [null, null];
+        }
+
+        $raw = trim((string) $raw);
+
+        // full URL
+        if (preg_match('#^https?://#i', $raw)) {
+            return [null, $raw];
+        }
+
+        // public images folder (public/images/...)
+        if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
+            $clean = ltrim($raw, '/');
+            return [$clean, url($clean)];
+        }
+
+        // storage relative path (products/xxx.jpg or /storage/products/xxx.jpg etc.)
+        $clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
+        $rel = trim($clean, '/');
+        return [$rel ?: null, $rel ? url('/storage/' . $rel) : null];
+    }
+
     public function toArray($request)
     {
-        $discountModel = null;
+        [$imgPath, $imgUrl] = $this->resolveImage($this->img ?? null);
+        [$thumbPath, $thumbUrl] = $this->resolveImage($this->img_thumb ?? null);
 
-        if ($this->relationLoaded('discounts')) {
-            $discountModel = $this->discounts->first();
-        } elseif (method_exists($this, 'activeDiscount')) {
-            $discountModel = $this->activeDiscount();
+        $currencyMap = ['USD' => '$', 'RUB' => '₽', 'EUR' => '€', 'GBP' => '£'];
+        $currencySymbol = $this->currency ? ($currencyMap[strtoupper($this->currency)] ?? $this->currency) : null;
+
+         // --- active discount (nullable) ---
+        $activeDiscount = null;
+        if (method_exists($this, 'activeDiscount')) {
+            $activeDiscount = $this->activeDiscount();
+        } elseif ($this->relationLoaded('discounts')) {
+            $activeDiscount = collect($this->discounts)->first(fn($d) => method_exists($d, 'isActive') ? $d->isActive() : ($d->active ?? false));
         }
 
-        $priceAfterFormatted = null;
-        if ($discountModel) {
-            if (method_exists($discountModel, 'priceAfter')) {
-                $computed = $discountModel->priceAfter($this->price);
-                $priceAfterFormatted = $computed !== null ? number_format((float)$computed, 2, '.', '') : null;
-            } else {
-                $pa = $discountModel->price_after ?? null;
-                $priceAfterFormatted = is_numeric($pa) ? number_format((float) $pa, 2, '.', '') : null;
-            }
+        $discount = null;
+        if ($activeDiscount) {
+            $discount = [
+                'type' => $activeDiscount->type ?? null,
+                'value' => $activeDiscount->value ?? null,
+                'currency' => $activeDiscount->currency ?? $this->currency ?? null,
+                'price_after' => method_exists($activeDiscount, 'priceAfter')
+                    ? $activeDiscount->priceAfter($this->price)
+                    : (isset($activeDiscount->price_after) ? $activeDiscount->price_after : null),
+            ];
         }
-
-        $imgPath = $this->img ? ltrim((string)$this->img, '/') : null;
 
         return [
-            'id'               => $this->id,
-            'title'            => $this->title,
-            'sku'              => $this->sku,
-            'price'            => $this->price !== null ? number_format((float)$this->price, 2, '.', '') : null,
-            'currency'         => $this->currency,
-            'description'      => $this->description,
-            'img'              => $imgPath,
-            'img_path'         => $imgPath,
-            'weight'           => $this->weight,
-            'colours'          => $this->colours,
-            'material'         => $this->material,
-            'dimensions'       => $this->dimensions,
-            'is_popular'       => (bool) $this->is_popular,
-            'category'         => new CategoryResource($this->whenLoaded('category')),
-            'views'            => (int) ($this->views ?? 0),
-            'sales_count'      => (int) ($this->sales_count ?? 0),
-            'reviews_count'    => (int) ($this->reviews_count ?? 0),
-            'rating'           => $this->rating !== null ? (float) $this->rating : null,
-            'reviews' => ReviewResource::collection($this->whenLoaded('reviews')),
-            'popularity_score' => (float) ($this->popularity_score ?? 0),
-            'discount' => $this->when($discountModel, function () use ($discountModel, $priceAfterFormatted) {
-                return [
-                    'id'         => $discountModel->id,
-                    'type'       => $discountModel->type,
-                    'value'      => is_numeric($discountModel->value) ? (float) $discountModel->value : $discountModel->value,
-                    'currency'   => $discountModel->currency,
-                    'price_after'=> $priceAfterFormatted,
-                ];
+            'id' => $this->id,
+            'title' => $this->title,
+            'sku' => $this->sku,
+            'price' => $this->price !== null ? number_format((float)$this->price, 2, '.', '') : null,
+            'currency' => $this->currency,
+            'currency_symbol' => $currencySymbol,
+            'discount' => $discount,
+            'description' => $this->description,
+            'img' => $imgPath,
+            'img_url' => $imgUrl,
+            'img_thumb_url' => $thumbUrl,
+            'weight' => $this->weight,
+            'dimensions' => $this->dimensions,
+            'colours' => $this->colours,
+            'material' => $this->material,
+            'is_popular' => (bool) ($this->is_popular ?? false),
+            'reviews_count' => (int) ($this->reviews_count ?? 0),
+            'rating' => $this->rating !== null ? (float) $this->rating : null,
+            'category' => $this->whenLoaded('category', function () {
+                return ['id' => $this->category->id, 'title' => $this->category->title];
             }),
+            'created_at' => $this->created_at?->toDateTimeString(),
+            'updated_at' => $this->updated_at?->toDateTimeString(),
         ];
     }
 }

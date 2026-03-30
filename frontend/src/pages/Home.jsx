@@ -3,29 +3,17 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { SwiperComponent } from "../components/ui/SwiperComponent/SwiperComponent.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
 import { Search } from "../components/ui/Search/Search.jsx";
-//статический массив продуктов из data.js
-// import { data } from "../../data.js";
-//статический массив категорий из categories.js
-// import { categories } from "../../categories.js";
 import { useDebounce } from "../hooks/useDebounce.js";
 
-// массив строк, при вводе которых в поисковую строку отображаются все продукты
 const showAllTerms = ["all categories", "all", "все категории", "все"];
 
-/**
- * Страница Home.
- *
- * Поисковая строка  отправляет запрос на бэкенд (search), фильтрация по категориям/title на бэке.
- */
-
 export const Home = () => {
-  // локальный state для поиска
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 750);
 
-  // состояния
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState(null);
 
   const [mounted, setMounted] = useState(false);
@@ -34,38 +22,47 @@ export const Home = () => {
     return () => clearTimeout(t);
   }, []);
 
+  const [allShown, setAllShown] = useState(false); // whether we've expanded to all
   const navigate = useNavigate();
 
-  // загрузка продуктов — учитывает debouncedQuery и запрашивает бэкенд с search
+  // fetch for home (top 12 by popularity) or search
   useEffect(() => {
-    const abortController = new AbortController();
+    const controller = new AbortController();
+
     const fetchProducts = async () => {
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams();
-        // если введён поисковый запрос и он не является "show all"
         const q = (debouncedQuery || "").toLowerCase().trim();
-        if (q && !showAllTerms.includes(q)) {
+        const isShowAll = q && showAllTerms.includes(q);
+
+        if (!q || isShowAll) {
+          // default home: top 12 by popularity
+          params.append("per_page", "12");
+          params.append("sort", "popular");
+        } else {
           params.append("search", debouncedQuery);
+          // keep default pagination for search (backend default)
         }
 
-        const url =
-          "http://shopper.local/api/products" +
-          (params.toString() ? `?${params.toString()}` : "");
+        const url = `http://shopper.local/api/products${params.toString() ? `?${params.toString()}` : ""}`;
+
         const res = await fetch(url, {
           credentials: "include",
-          signal: abortController.signal,
+          signal: controller.signal,
         });
+
         if (!res.ok) throw new Error("Network response was not ok");
+
         const json = await res.json();
-        if (Array.isArray(json)) {
-          setProducts(json);
-        } else if (json && Array.isArray(json.data)) {
-          setProducts(json.data);
-        } else {
-          setProducts(json.data || []);
-        }
+        const list = Array.isArray(json)
+          ? json
+          : json && Array.isArray(json.data)
+            ? json.data
+            : (json.data ?? []);
+        setProducts(list);
+        setAllShown(false); // reset expand when query changes
       } catch (err) {
         if (err.name !== "AbortError") {
           console.error("fetch error products", err);
@@ -76,11 +73,79 @@ export const Home = () => {
         setLoading(false);
       }
     };
+
     fetchProducts();
-    return () => {
-      abortController.abort();
-    };
+
+    return () => controller.abort();
   }, [debouncedQuery]);
+
+  // handler to show all products in-place
+  const handleViewAll = async () => {
+    if (allShown) {
+      // collapse back to top 12: re-fetch default home list (simple)
+      setAllShown(false);
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.append("per_page", "12");
+        params.append("sort", "popular");
+        const res = await fetch(
+          `http://shopper.local/api/products?${params.toString()}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) throw new Error("Network response was not ok");
+        const json = await res.json();
+        const list = Array.isArray(json)
+          ? json
+          : json && Array.isArray(json.data)
+            ? json.data
+            : (json.data ?? []);
+        setProducts(list);
+      } catch (err) {
+        console.error("collapse error", err);
+        setError("Failed to load products");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // expand: load all popular products (no per_page)
+    setLoadingAll(true);
+    setError(null);
+    try {
+      // use sort=popular, no per_page to get all (backend default)
+      const res = await fetch(
+        "http://shopper.local/api/products?sort=popular",
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error("Network response was not ok");
+      const json = await res.json();
+      const list = Array.isArray(json)
+        ? json
+        : json && Array.isArray(json.data)
+          ? json.data
+          : (json.data ?? []);
+      // remove duplicates by id if somehow overlap
+      const ids = new Set(products.map((p) => p.id));
+      const merged = [...products];
+      for (const item of list) {
+        if (!ids.has(item.id)) {
+          merged.push(item);
+          ids.add(item.id);
+        }
+      }
+      // if we started from top12, merged will be full set
+      setProducts(merged);
+      setAllShown(true);
+    } catch (err) {
+      console.error("load all error", err);
+      setError("Failed to load all products");
+    } finally {
+      setLoadingAll(false);
+    }
+  };
 
   return (
     <>
@@ -88,12 +153,13 @@ export const Home = () => {
 
       <div className="mt-16 mb-10 w-full flex justify-between items-center">
         <h2 className="text-3xl font-medium">Shop The Latest</h2>
-        <NavLink
-          to="/shop"
+        <button
+          type="button"
+          onClick={handleViewAll}
           className="btn text-xl font-medium text-[#A18A68] hover:text-[#070707]"
         >
-          View All
-        </NavLink>
+          {allShown ? "Show Less" : "View All"}
+        </button>
       </div>
 
       <div className="mt-6 mb-6">
@@ -120,9 +186,7 @@ export const Home = () => {
             <div
               key={product.id}
               className={`card-wrapper ${mounted ? "show" : ""}`}
-              style={{
-                transitionDelay: `${Math.min(i * 80)}ms`,
-              }}
+              style={{ transitionDelay: `${Math.min(i * 80)}ms` }}
             >
               <Card
                 details={product}
@@ -132,7 +196,7 @@ export const Home = () => {
             </div>
           ))
         ) : (
-          <div className="w-full текст-center py-16 text-gray-500">
+          <div className="w-full text-center py-16 text-gray-500">
             No products found
           </div>
         )}
