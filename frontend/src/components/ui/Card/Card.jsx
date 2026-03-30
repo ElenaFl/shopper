@@ -17,8 +17,60 @@ const safeSrc = (img, img_url) => {
   return img.startsWith("/") ? base + img : base + "/" + img;
 };
 
+// Robust discount extractor
+function normalizeDiscount(raw) {
+  if (!raw) return null;
+
+  // If discount is nested under discount.discount or discounts array
+  if (Array.isArray(raw) && raw.length > 0) {
+    return normalizeDiscount(raw[0]);
+  }
+
+  if (typeof raw === "object") {
+    // Sometimes API returns { discount: { ... } }
+    if (raw.discount && typeof raw.discount === "object") {
+      return normalizeDiscount(raw.discount);
+    }
+
+    // Common shapes:
+    // { type: 'percent', value: 10 }
+    // { price_after: 12.5 }
+    // { value: 10, currency: 'USD' }
+    // { amount: 10, currency: 'USD' }
+    const type = raw.type ?? null;
+    const value = raw.value ?? raw.amount ?? null;
+    const price_after = raw.price_after ?? raw.priceAfter ?? null;
+    const currency = raw.currency ?? raw.currency_code ?? null;
+
+    // If object already contains price_after, prefer that
+    if (price_after != null) {
+      return {
+        type: "fixed",
+        value: value,
+        price_after: Number(price_after),
+        currency,
+      };
+    }
+
+    if (type === "percent" && (value != null || raw.value != null)) {
+      return { type: "percent", value: Number(value), currency };
+    }
+
+    if (value != null) {
+      return { type: "fixed", value: Number(value), currency };
+    }
+  }
+
+  // Unknown format -> null
+  return null;
+}
+
 export const Card = React.memo((props) => {
-  const { id, title, currency, price, img, discount } = props.details || {};
+  const { id, title, currency, price, img } = props.details || {};
+  const rawDiscount =
+    props.details?.discount ?? props.details?.discounts ?? null;
+  const discount = normalizeDiscount(rawDiscount);
+
   const { width, height, heightImg } = props.size || {};
   const { className = "", style = {}, onOpenDetails } = props;
 
@@ -26,7 +78,7 @@ export const Card = React.memo((props) => {
     v === null || v === undefined || v === "" ? null : Number(String(v).trim());
 
   const origPrice = parsePrice(price);
-  const priceAfter = parsePrice(discount?.price_after);
+  const priceAfter = parsePrice(discount?.price_after ?? discount?.price_after); // normalized name
 
   const formatPrice = (value, currencyLabel) => {
     if (value == null || isNaN(Number(value))) return "";
@@ -117,6 +169,14 @@ export const Card = React.memo((props) => {
         ) : (
           <div style={{ color: "#000", fontWeight: 600 }}>
             {formatPrice(origPrice, currency) || ""}
+            {/* if there's a percent discount but no explicit priceAfter, show percent */}
+            {!priceAfter &&
+            discount?.type === "percent" &&
+            discount?.value != null ? (
+              <span style={{ marginLeft: 8, color: "green" }}>
+                {`-${Number(discount.value).toFixed(0)}%`}
+              </span>
+            ) : null}
           </div>
         )}
       </div>
