@@ -16,21 +16,38 @@ class ProductResource extends JsonResource
         $raw = trim((string) $raw);
 
         // full URL
-        if (preg_match('#^https?://#i', $raw)) {
-            return [null, $raw];
-        }
+if (preg_match('#^https?://#i', $raw)) {
+    return [null, $raw];
+}
 
-        // public images folder (public/images/...)
-        if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
-            $clean = ltrim($raw, '/');
-            return [$clean, url($clean)];
-        }
+// already an images path (public/images/...)
+if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
+    $clean = ltrim($raw, '/');
+    return [$clean, url($clean)];
+}
 
-        // storage relative path (products/xxx.jpg or /storage/products/xxx.jpg etc.)
-        $clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
-        $rel = trim($clean, '/');
-        return [$rel ?: null, $rel ? url('/storage/' . $rel) : null];
-    }
+// normalize potential storage or public-relative paths
+$clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
+$rel = trim($clean, '/');
+
+if (! $rel) {
+    return [null, null];
+}
+
+// 1) if file exists under public/<rel>, prefer that
+if (file_exists(public_path($rel))) {
+    return [$rel, url($rel)];
+}
+
+// 2) if file exists under public/images/<rel>, prefer that
+$inImages = 'images/' . ltrim($rel, '/');
+if (file_exists(public_path($inImages))) {
+    return [$inImages, url($inImages)];
+}
+
+// 3) fallback to storage URL (public/storage/<rel>)
+return [$rel, url('/storage/' . $rel)];
+}
 
     public function toArray($request)
     {
@@ -71,7 +88,7 @@ class ProductResource extends JsonResource
             'description' => $this->description,
             'img' => $imgPath,
             'img_url' => $imgUrl,
-            'img_thumb_url' => $thumbUrl,
+            'img_thumb_url' => $thumbUrl ?? $imgUrl,
             'weight' => $this->weight,
             'dimensions' => $this->dimensions,
             'colours' => $this->colours,
