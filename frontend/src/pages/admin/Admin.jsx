@@ -58,7 +58,7 @@ export const Admin = () => {
   const [pLoading, setPLoading] = useState(false);
   const [pError, setPError] = useState(null);
 
-  // eslint-disable-next-line no-unused-vars
+  // reviews aggregation
   const [productReviews, setProductReviews] = useState({});
   const [aggReviews, setAggReviews] = useState([]);
   const [rLoading, setRLoading] = useState(false);
@@ -68,8 +68,10 @@ export const Admin = () => {
   const [productsMeta, setProductsMeta] = useState(null);
   const [categories, setCategories] = useState([]);
 
-  // Create form state (use currency codes)
-  const [showCreate, setShowCreate] = useState(false);
+  // Drawer visibility (used for both create and edit)
+  const [showDrawer, setShowDrawer] = useState(false);
+
+  // Create form state
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
     title: "",
@@ -77,7 +79,8 @@ export const Admin = () => {
     price: "",
     sku: "",
     description: "",
-    img: null,
+    img: null, // File
+    img_url: null, // preview for already uploaded
     weight: "",
     material: "",
     colours: "",
@@ -95,6 +98,7 @@ export const Admin = () => {
       sku: "",
       description: "",
       img: null,
+      img_url: null,
       weight: "",
       material: "",
       colours: "",
@@ -102,10 +106,35 @@ export const Admin = () => {
       currency: "USD",
       discount: "",
     });
+
   const openCreate = () => {
     resetCreateForm();
-    setShowCreate(true);
+    setEditing(false);
+    setEditMode(null);
+    setShowDrawer(true);
   };
+
+  // Edit state
+  const [editMode, setEditMode] = useState(null); // product id or null
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    id: null,
+    title: "",
+    category_id: "",
+    price: "",
+    sku: "",
+    description: "",
+    img: null, // File if changed
+    img_url: null, // existing image url for preview
+    weight: "",
+    material: "",
+    colours: "",
+    is_popular: false,
+    currency: "USD",
+    discount: "",
+  });
+
+  const setEditField = (k, v) => setEditForm((s) => ({ ...s, [k]: v }));
 
   // load categories for select
   useEffect(() => {
@@ -168,7 +197,7 @@ export const Admin = () => {
     setPError(null);
     try {
       const res = await apiFetch(
-        `/api/products?per_page=${productsPerPage}&page=${page}`,
+        `/api/admin/products?per_page=${productsPerPage}&page=${page}`,
         { headers: { Accept: "application/json" } },
       );
       if (!res.ok) throw new Error("Fetch error: " + res.status);
@@ -211,6 +240,7 @@ export const Admin = () => {
       [productId]: { ...(prev[productId] || {}), loading: true, error: null },
     }));
     try {
+      // For reviews we can use public product show which returns reviews
       const res = await apiFetch(`/api/products/${productId}`, {
         headers: { Accept: "application/json" },
       });
@@ -249,7 +279,7 @@ export const Admin = () => {
       const collected = [];
       while (page <= initialPagesToLoad) {
         const res = await apiFetch(
-          `/api/products?per_page=${productsPerPage}&page=${page}`,
+          `/api/admin/products?per_page=${productsPerPage}&page=${page}`,
           { headers: { Accept: "application/json" } },
         );
         if (!res.ok) throw new Error("Fetch error: " + res.status);
@@ -325,7 +355,36 @@ export const Admin = () => {
             {products.map((p) => (
               <tr key={p.id} className="border-b border-[#e5e7eb]">
                 <td>{p.id}</td>
-                <td>{p.title}</td>
+                <td
+                  onDoubleClick={() => {
+                    // open edit drawer and populate editForm
+                    setEditForm({
+                      id: p.id,
+                      title: p.title ?? "",
+                      category_id: p.category_id ?? p.category?.id ?? "",
+                      price: p.price ?? "",
+                      sku: p.sku ?? "",
+                      description: p.description ?? "",
+                      img: null,
+                      img_url: p.img_url ?? p.img ?? null,
+                      weight: p.weight ?? "",
+                      material: p.material ?? "",
+                      colours: p.colours ?? "",
+                      is_popular: !!p.is_popular,
+                      currency: p.currency ?? "USD",
+                      discount: p.discount
+                        ? p.discount.type === "percent"
+                          ? p.discount.value
+                          : ""
+                        : "",
+                    });
+                    setEditMode(p.id);
+                    setShowDrawer(true);
+                  }}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                >
+                  {p.title}
+                </td>
                 <td>
                   {resolveImgUrl(p) ? (
                     <img
@@ -385,7 +444,6 @@ export const Admin = () => {
     }
     setCreating(true);
     try {
-      // Ensure CSRF cookie is present (important for session-based auth)
       try {
         await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
           credentials: "include",
@@ -438,13 +496,6 @@ export const Admin = () => {
       const createdJson = await res.json().catch(() => null);
       const created = createdJson?.data ?? createdJson ?? null;
 
-      // If API returns img_url / img_thumb_url, you may use them when refreshing UI
-      if (created) {
-        // Optionally insert created item into products list for immediate feedback
-        // setProducts(prev => [created, ...prev]); // if desired
-      }
-
-      // If discount specified - create discount (best-effort)
       if (createForm.discount && Number(createForm.discount) > 0) {
         try {
           const discountPayload = {
@@ -472,13 +523,106 @@ export const Admin = () => {
         }
       }
 
-      setShowCreate(false);
+      setShowDrawer(false);
       await loadProductsPage(1, true);
     } catch (err) {
       console.error(err);
       alert("Ошибка при создании товара");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editForm.title || !editForm.price || !editForm.category_id) {
+      alert("Заполните обязательные поля: title, price, category");
+      return;
+    }
+    setEditing(true);
+    try {
+      try {
+        await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
+          credentials: "include",
+        });
+      } catch (e) {
+        // ignore
+      }
+
+      const formData = new FormData();
+      formData.append("title", editForm.title);
+      formData.append("category_id", String(editForm.category_id));
+      formData.append("price", String(editForm.price));
+      if (editForm.sku) formData.append("sku", editForm.sku);
+      formData.append("description", editForm.description || "");
+      if (editForm.weight) formData.append("weight", editForm.weight);
+      if (editForm.material) formData.append("material", editForm.material);
+      if (editForm.colours) formData.append("colours", editForm.colours);
+      formData.append("is_popular", editForm.is_popular ? "1" : "0");
+      formData.append("currency", editForm.currency || "USD");
+      if (editForm.img instanceof File) formData.append("img", editForm.img);
+
+      // Laravel expects PUT/PATCH — use _method override
+      formData.append("_method", "PUT");
+
+      const res = await fetch(`${API_BASE}/api/admin/products/${editForm.id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-XSRF-TOKEN": getXsrf(),
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        console.error("Update failed", res.status, data);
+        if (res.status === 422 && data && data.errors) {
+          const messages = Object.values(data.errors).flat().join("\n");
+          alert("Validation errors:\n" + messages);
+        } else {
+          alert(data?.message || `Update failed: ${res.status}`);
+        }
+        return;
+      }
+
+      setShowDrawer(false);
+      setEditMode(null);
+      await loadProductsPage(1, true);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка при обновлении товара");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editForm.id) return;
+    if (!confirm("Удалить этот товар?")) return;
+    setEditing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/products/${editForm.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "X-XSRF-TOKEN": getXsrf(),
+        },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || `Delete failed: ${res.status}`);
+      }
+      setShowDrawer(false);
+      setEditMode(null);
+      await loadProductsPage(1, true);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Ошибка при удалении");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -551,7 +695,7 @@ export const Admin = () => {
             {rLoading ? (
               <div>Loading reviews…</div>
             ) : rError ? (
-              <div className="text-red-600">Error: {rError}</div>
+              <div className="text-red-600">{rError}</div>
             ) : aggReviews.length === 0 ? (
               <div>No reviews found</div>
             ) : (
@@ -581,25 +725,38 @@ export const Admin = () => {
         )}
       </main>
 
-      {/* CREATE Drawer */}
+      {/* Drawer (create / edit) */}
       <Drawer
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Create"
+        isOpen={showDrawer}
+        onClose={() => {
+          setShowDrawer(false);
+          setEditMode(null);
+          setEditing(false);
+        }}
+        title={editMode ? "Edit product" : "Create"}
         align="right"
       >
+        {/* form: if editMode use editForm else createForm */}
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            await handleCreateSubmit();
+            if (editMode) {
+              await handleEditSubmit();
+            } else {
+              await handleCreateSubmit();
+            }
           }}
         >
           <div className="form-row">
             <label className="form-label">Title *</label>
             <input
               className="form-input"
-              value={createForm.title}
-              onChange={(e) => setCreateField("title", e.target.value)}
+              value={editMode ? editForm.title : createForm.title}
+              onChange={(e) =>
+                editMode
+                  ? setEditField("title", e.target.value)
+                  : setCreateField("title", e.target.value)
+              }
               required
             />
           </div>
@@ -608,8 +765,12 @@ export const Admin = () => {
             <label className="form-label">Category *</label>
             <select
               className="form-select"
-              value={createForm.category_id}
-              onChange={(e) => setCreateField("category_id", e.target.value)}
+              value={editMode ? editForm.category_id : createForm.category_id}
+              onChange={(e) =>
+                editMode
+                  ? setEditField("category_id", e.target.value)
+                  : setCreateField("category_id", e.target.value)
+              }
               required
             >
               <option value="">— Select a category —</option>
@@ -629,14 +790,18 @@ export const Admin = () => {
                 className="form-input"
                 type="number"
                 step="0.01"
-                value={createForm.price}
-                onChange={(e) => setCreateField("price", e.target.value)}
+                value={editMode ? editForm.price : createForm.price}
+                onChange={(e) =>
+                  editMode
+                    ? setEditField("price", e.target.value)
+                    : setCreateField("price", e.target.value)
+                }
                 required
               />
             </div>
           </div>
 
-          {/* Discount row (процент) */}
+          {/* Discount row */}
           <div
             className="form-row"
             style={{ display: "flex", gap: 8, marginTop: 12 }}
@@ -649,8 +814,16 @@ export const Admin = () => {
                 step="0.01"
                 min="0"
                 max="100"
-                value={createForm.discount ?? ""}
-                onChange={(e) => setCreateField("discount", e.target.value)}
+                value={
+                  editMode
+                    ? (editForm.discount ?? "")
+                    : (createForm.discount ?? "")
+                }
+                onChange={(e) =>
+                  editMode
+                    ? setEditField("discount", e.target.value)
+                    : setCreateField("discount", e.target.value)
+                }
                 placeholder="0"
               />
             </div>
@@ -659,8 +832,12 @@ export const Admin = () => {
               <label className="form-label">Currency*</label>
               <select
                 className="form-select"
-                value={createForm.currency}
-                onChange={(e) => setCreateField("currency", e.target.value)}
+                value={editMode ? editForm.currency : createForm.currency}
+                onChange={(e) =>
+                  editMode
+                    ? setEditField("currency", e.target.value)
+                    : setCreateField("currency", e.target.value)
+                }
               >
                 <option value="USD">USD</option>
                 <option value="RUB">RUB</option>
@@ -674,8 +851,12 @@ export const Admin = () => {
             <label className="form-label">SKU</label>
             <input
               className="form-input"
-              value={createForm.sku}
-              onChange={(e) => setCreateField("sku", e.target.value)}
+              value={editMode ? editForm.sku : createForm.sku}
+              onChange={(e) =>
+                editMode
+                  ? setEditField("sku", e.target.value)
+                  : setCreateField("sku", e.target.value)
+              }
             />
           </div>
 
@@ -684,8 +865,12 @@ export const Admin = () => {
             <label className="form-label">Description</label>
             <textarea
               className="form-textarea"
-              value={createForm.description}
-              onChange={(e) => setCreateField("description", e.target.value)}
+              value={editMode ? editForm.description : createForm.description}
+              onChange={(e) =>
+                editMode
+                  ? setEditField("description", e.target.value)
+                  : setCreateField("description", e.target.value)
+              }
             />
           </div>
 
@@ -695,8 +880,12 @@ export const Admin = () => {
               <label className="form-label">Weight</label>
               <input
                 className="form-input"
-                value={createForm.weight}
-                onChange={(e) => setCreateField("weight", e.target.value)}
+                value={editMode ? editForm.weight : createForm.weight}
+                onChange={(e) =>
+                  editMode
+                    ? setEditField("weight", e.target.value)
+                    : setCreateField("weight", e.target.value)
+                }
                 placeholder="e.g. 1.2 kg"
               />
             </div>
@@ -704,8 +893,12 @@ export const Admin = () => {
               <label className="form-label">Material</label>
               <input
                 className="form-input"
-                value={createForm.material}
-                onChange={(e) => setCreateField("material", e.target.value)}
+                value={editMode ? editForm.material : createForm.material}
+                onChange={(e) =>
+                  editMode
+                    ? setEditField("material", e.target.value)
+                    : setCreateField("material", e.target.value)
+                }
                 placeholder="e.g. Cotton"
               />
             </div>
@@ -716,8 +909,12 @@ export const Admin = () => {
             <label className="form-label">Colours</label>
             <input
               className="form-input"
-              value={createForm.colours}
-              onChange={(e) => setCreateField("colours", e.target.value)}
+              value={editMode ? editForm.colours : createForm.colours}
+              onChange={(e) =>
+                editMode
+                  ? setEditField("colours", e.target.value)
+                  : setCreateField("colours", e.target.value)
+              }
               placeholder="e.g. red, blue"
             />
           </div>
@@ -730,8 +927,12 @@ export const Admin = () => {
             <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="checkbox"
-                checked={createForm.is_popular}
-                onChange={(e) => setCreateField("is_popular", e.target.checked)}
+                checked={editMode ? editForm.is_popular : createForm.is_popular}
+                onChange={(e) =>
+                  editMode
+                    ? setEditField("is_popular", e.target.checked)
+                    : setCreateField("is_popular", e.target.checked)
+                }
               />
               <span>Popular</span>
             </label>
@@ -745,10 +946,31 @@ export const Admin = () => {
               accept="image/*"
               onChange={(e) => {
                 const f = e.target.files && e.target.files[0];
-                setCreateField("img", f);
+                if (editMode) {
+                  setEditField("img", f);
+                } else {
+                  setCreateField("img", f);
+                }
               }}
             />
-            {createForm.img ? (
+            {/* preview: if file chosen show it, else show existing img_url */}
+            {editMode ? (
+              editForm.img ? (
+                <img
+                  alt="preview"
+                  src={URL.createObjectURL(editForm.img)}
+                  className="create-image-preview"
+                  style={{ marginTop: 8 }}
+                />
+              ) : editForm.img_url ? (
+                <img
+                  alt="preview"
+                  src={editForm.img_url}
+                  className="create-image-preview"
+                  style={{ marginTop: 8 }}
+                />
+              ) : null
+            ) : createForm.img ? (
               <img
                 alt="preview"
                 src={URL.createObjectURL(createForm.img)}
@@ -760,20 +982,50 @@ export const Admin = () => {
 
           {/* Actions */}
           <div className="form-actions">
-            <button
-              type="button"
-              className="btn-cancel"
-              onClick={() => {
-                setShowCreate(false);
-              }}
-              disabled={creating}
-            >
-              Cancel
-            </button>
+            {editMode ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={async () => {
+                    // Delete action
+                    await handleDelete();
+                  }}
+                  disabled={editing}
+                >
+                  {editing ? "Deleting..." : "Delete"}
+                </button>
 
-            <button type="submit" className="btn-primary" disabled={creating}>
-              {creating ? "Saving..." : "Save"}
-            </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={editing}
+                >
+                  {editing ? "Updating..." : "Update"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowDrawer(false);
+                  }}
+                  disabled={creating}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={creating}
+                >
+                  {creating ? "Saving..." : "Save"}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </Drawer>
