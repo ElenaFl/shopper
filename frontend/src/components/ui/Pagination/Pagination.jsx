@@ -3,8 +3,20 @@ import React from "react";
 export const Pagination = ({ meta, onChange }) => {
   // meta: { current_page, per_page, total, last_page } OR { current_page, last_page }
   if (!meta) return null;
+
   const current = Number(meta.current_page || meta.currentPage || 1);
   const last = Number(meta.last_page || meta.lastPage || meta.last || 1);
+  const perPage = Number(
+    meta.per_page || meta.perPage || meta.per_page_value || 0,
+  );
+  const total = Number(meta.total || meta.total_items || meta.count || 0);
+
+  // If we know total and perPage, hide pagination when everything fits on one page
+  if (perPage > 0 && total > 0 && total <= perPage) return null;
+
+  // Fallback: if last (pages count) is 1 or less, hide pagination
+  if (!perPage && last <= 1) return null;
+
   const arr = [];
 
   // build window of pages around current
@@ -36,7 +48,7 @@ export const Pagination = ({ meta, onChange }) => {
   return (
     <nav className="flex items-center gap-2" aria-label="Pagination">
       <button
-        className="px-3 py-1 border rounded"
+        className="pagination-btn"
         onClick={() => current > 1 && onChange(current - 1)}
         disabled={current <= 1}
       >
@@ -60,7 +72,7 @@ export const Pagination = ({ meta, onChange }) => {
       )}
 
       <button
-        className="px-3 py-1 border rounded"
+        className="pagination-btn"
         onClick={() => current < last && onChange(current + 1)}
         disabled={current >= last}
       >

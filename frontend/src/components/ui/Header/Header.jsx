@@ -1,73 +1,38 @@
-import React, { useState, useRef, useEffect } from "react";
-import { NavLink, Link, useLocation } from "react-router-dom";
-import { Search } from "../Search/Search.jsx";
+import React, { useState } from "react";
+import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/auth/useAuth.js";
 
 export const Header = () => {
-  const [showSearch, setShowSearch] = useState(false);
+  const [showHeart, setShowHeart] = useState(false);
   const location = useLocation();
-  const inputRef = useRef(null);
 
   const { user, checking } = useAuth();
-
-  const panelRef = useRef(null);
-  const toggleBtnRef = useRef(null);
+  const navigate = useNavigate();
 
   const isHome = location.pathname === "/" || location.pathname === "";
 
-  const toggleSearch = () => setShowSearch((p) => !p);
+  const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
-  useEffect(() => {
-    if (showSearch) {
-      const t = setTimeout(() => {
-        if (inputRef.current) inputRef.current.focus();
-      }, 50);
-      return () => clearTimeout(t);
+  const handleAccountClick = async (e) => {
+    e?.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/user`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        const currentUser = json && (json.data ?? json);
+        if (currentUser && currentUser.is_admin) {
+          navigate("/admin");
+          return;
+        }
+      }
+    } catch {
+      // network error, fall through to account
     }
-  }, [showSearch]);
-
-  useEffect(() => {
-    if (!showSearch) return;
-
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") {
-        setShowSearch(false);
-        if (toggleBtnRef.current) toggleBtnRef.current.focus();
-      }
-    };
-
-    const onClick = (e) => {
-      const el = e.target;
-      if (
-        panelRef.current &&
-        (panelRef.current.contains(el) ||
-          (toggleBtnRef.current && toggleBtnRef.current.contains(el)))
-      ) {
-        return;
-      }
-      setShowSearch(false);
-      if (toggleBtnRef.current) toggleBtnRef.current.focus();
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("click", onClick);
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("click", onClick);
-    };
-  }, [showSearch]);
-
-  // const handleSubmit = (value) => {
-  //   const v = (value || "").trim();
-  //   setQuery(v);
-  // };
-
-  // // Cancel очищает строку, но не закрывает панель
-  // const handleCancel = () => {
-  //   setQuery("");
-  //   if (inputRef.current) inputRef.current.focus();
-  // };
+    navigate("/account");
+  };
 
   return (
     <header className="pt-17 fixed top-0 left-0 right-0 z-40 bg-white ">
@@ -96,7 +61,6 @@ export const Header = () => {
                 />
               </svg>
             </Link>
-
             {!checking && user ? (
               <div className="h-7 w-70 ml-4 bg-red hidden md:flex items-center">
                 <span
@@ -121,24 +85,19 @@ export const Header = () => {
 
               <span className="text-grey-500">|</span>
 
-              {isHome ? (
-                <button
-                  type="button"
-                  ref={toggleBtnRef}
-                  onClick={toggleSearch}
-                  className="w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
-                  aria-label="Toggle search"
-                  aria-expanded={showSearch}
-                >
-                  <img
-                    className="w-full h-full object-cover"
-                    src="/images/searchHeader.svg"
-                    alt="search"
-                  />
-                </button>
-              ) : (
-                <div className="w-6 h-6" />
-              )}
+              <button
+                type="button"
+                onClick={() => setShowHeart((s) => !s)}
+                className="w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
+                aria-label="Saved items"
+                aria-expanded={showHeart}
+              >
+                <img
+                  className="w-full h-full object-cover"
+                  src="/images/heart.svg"
+                  alt="saved"
+                />
+              </button>
 
               <Link
                 to="/cart"
@@ -147,32 +106,22 @@ export const Header = () => {
                 <img src="/images/shoppingCart.svg" alt="shopping cart" />
               </Link>
 
-              <Link
-                to="/account"
+              <a
+                href="/account"
+                onClick={handleAccountClick}
                 className="btn w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
               >
                 <img src="/images/loginHeader.svg" alt="login" />
-              </Link>
+              </a>
             </div>
 
             <div
-              ref={panelRef}
               className={`absolute top-full left-0 right-0 bg-[#EFEFEF] border-t-2 border-[#A18A68] shadow-bottom ${
-                showSearch ? "block z-60" : "hidden"
+                showHeart ? "block z-60" : "hidden"
               }`}
             >
               <div className="container p-6">
-                {/* <Search
-                  ref={inputRef}
-                  value={query}
-                  onChange={setQuery}
-                  onSubmit={handleSubmit}
-                  onCancel={handleCancel}
-                  // wide wrapper in header
-                  wrapperClassName="w-full max-w-[90%] mx-auto"
-                  inputClassName="w-full"
-                  placeholder="Search categories or products..."
-                /> */}
+                <div>Saved items panel (to implement)</div>
               </div>
             </div>
           </div>
