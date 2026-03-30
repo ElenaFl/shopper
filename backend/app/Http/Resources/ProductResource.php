@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use \App\Http\Resources\ReviewResource;
 
 class ProductResource extends JsonResource
 {
@@ -77,12 +78,14 @@ class ProductResource extends JsonResource
             'material' => $this->material,
             'is_popular' => (bool) ($this->is_popular ?? false),
             'reviews_count' => (int) ($this->reviews_count ?? 0),
+            'reviews' => $this->whenLoaded('reviews') ? ReviewResource::collection($this->reviews) : null,
             'rating' => $this->rating !== null ? (float) $this->rating : null,
             'category' => $this->whenLoaded('category', function () {
                 return ['id' => $this->category->id, 'title' => $this->category->title];
             }),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
+            'views' => $this->views ?? $this->views_count ?? $this->views_total ?? 0,
         ];
     }
 }
