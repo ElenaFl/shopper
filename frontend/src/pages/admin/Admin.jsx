@@ -365,6 +365,15 @@ export const Admin = () => {
     }
     setCreating(true);
     try {
+      // Ensure CSRF cookie is present (important for session-based auth)
+      try {
+        await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
+          credentials: "include",
+        });
+      } catch (e) {
+        console.warn("Failed to fetch CSRF cookie", e);
+      }
+
       const formData = new FormData();
       formData.append("title", createForm.title);
       formData.append("category_id", createForm.category_id);
@@ -390,8 +399,18 @@ export const Admin = () => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        console.error("Create failed", data);
-        alert(data?.message || `Create failed: ${res.status}`);
+        console.error("Create failed", res.status, data);
+        if (res.status === 422 && data && data.errors) {
+          const messages = Object.values(data.errors).flat().join("\n");
+          alert("Validation errors:\n" + messages);
+        } else if (res.status === 403) {
+          alert("Forbidden: you don't have permission to create products.");
+        } else if (res.status === 401) {
+          alert("Unauthorized: please login as admin.");
+          navigate("/account");
+        } else {
+          alert(data?.message || `Create failed: ${res.status}`);
+        }
         return;
       }
 
@@ -399,6 +418,7 @@ export const Admin = () => {
       const created = createdJson?.data ?? createdJson ?? null;
       const createdSku = created?.sku ?? createForm.sku ?? null;
 
+      // If discount specified - create discount (best-effort)
       if (createForm.discount && Number(createForm.discount) > 0) {
         try {
           const discountPayload = {

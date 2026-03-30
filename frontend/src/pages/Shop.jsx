@@ -145,6 +145,27 @@ export const Shop = () => {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      const serverMeta =
+        json?.meta ??
+        (json && json.current_page
+          ? {
+              current_page: json.current_page,
+              last_page: json.last_page,
+              per_page: json.per_page,
+              total: json.total,
+            }
+          : null);
+
+      if (
+        serverMeta &&
+        serverMeta.current_page &&
+        serverMeta.last_page &&
+        serverMeta.current_page > serverMeta.last_page
+      ) {
+        // set page to 1 and schedule a re-fetch (fetchProducts will be triggered by effect watching page)
+        setPage(1);
+        return;
+      }
       // if backend returns paginator structure { data: [...], meta: {...} }
       if (json && Array.isArray(json.data)) {
         setProducts(json);
@@ -241,6 +262,9 @@ export const Shop = () => {
   }, [debouncedQuery]);
 
   const onSelectCategory = (v) => {
+    // reset to first page immediately
+    setPage(1);
+
     if (v === "all" || v === "" || v == null) {
       const params = {};
       if (sort) params.sort = sort;
@@ -256,16 +280,18 @@ export const Shop = () => {
     }
     // selecting category cancels search
     setQuery("");
-    const params = { category_id: v };
+    const params = { category_id: v, page: 1 };
     if (sort) params.sort = sort;
     if (priceMax != null && Number(priceMax) > 0)
       params.price_max = String(priceMax);
     if (onlyOnSale) params.on_sale = "1";
-    params.page = 1;
     applyParams(params);
   };
 
   const onChangeSort = (v) => {
+    // reset page
+    setPage(1);
+
     const params = {};
     if (selected) params.category_id = selected;
     if (v) params.sort = v;
@@ -281,6 +307,8 @@ export const Shop = () => {
   // when user presses Filter on Trackbar: apply price filter, KEEP category, RESET sort, cancel search
   const onTrackFilter = (value) => {
     setPriceMax(value);
+    // immediately reset page to 1 to avoid fetching stale page
+    setPage(1);
 
     const params = {};
     if (selected) params.category_id = selected; // keep category
@@ -291,6 +319,7 @@ export const Shop = () => {
     // no params.search
     params.page = 1;
     applyParams(params);
+
     setSort("");
     setQuery("");
   };
@@ -329,11 +358,26 @@ export const Shop = () => {
           }
         : null;
 
+  // VSTAVIT: compute whether to show pagination
+  const totalItems = Number(paginationMeta?.total ?? 0);
+  const perPageMeta = Number(
+    paginationMeta?.per_page ?? paginationMeta?.perPage ?? PER_PAGE,
+  );
+  const lastPageMeta = Number(
+    paginationMeta?.last_page ?? paginationMeta?.lastPage ?? 1,
+  );
+
+  const showPagination =
+    totalItems > 0 && (lastPageMeta > 1 || totalItems > perPageMeta);
+
   const valueForSelect = selected === "" ? "all" : selected;
 
   const onToggleOnlyOnSale = (v) => {
     // v — новое boolean value
     setOnlyOnSale(Boolean(v));
+    // reset page synchronously
+    setPage(1);
+
     // build params preserving current filters
     const params = {};
     if (selected) params.category_id = selected;
@@ -374,6 +418,7 @@ export const Shop = () => {
                 onChange={(v) => setQuery(v)}
                 onSubmit={(v) => {
                   setQuery(v);
+                  setPage(1);
                   const params = {};
                   if (sort) params.sort = sort;
                   if (priceMax != null && Number(priceMax) > 0)
@@ -473,7 +518,9 @@ export const Shop = () => {
             </div>
             <div className="mt-12 mb-24 flex justify-center">
               {/* pagination */}
-              <Pagination meta={paginationMeta} onChange={onChangePage} />
+              {showPagination ? (
+                <Pagination meta={paginationMeta} onChange={onChangePage} />
+              ) : null}
             </div>
           </div>
         </div>
