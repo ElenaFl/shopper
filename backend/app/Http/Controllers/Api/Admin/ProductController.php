@@ -14,11 +14,6 @@ use \Intervention\Image\Facades\Image;
 
 class ProductController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth:sanctum');
-    }
-
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 24);
@@ -105,28 +100,35 @@ class ProductController extends Controller
     }
 
     public function update(Request $request, Product $product)
-{
-    $this->authorize('update', $product);
+    {
+        /** @var \App\Models\User|null $user */
+        $user = auth()->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+        if (! (bool) ($user->is_admin ?? false)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
 
-    $data = $request->validate([
-        'title' => 'sometimes|required|string|max:255',
-        'sku' => ['nullable','string','max:100', Rule::unique('products','sku')->ignore($product->id)],
-        'category_id' => 'nullable|integer|exists:categories,id',
-        'price' => 'sometimes|required|numeric|min:0',
-        'currency' => 'nullable|string|max:10',
-        'description' => 'nullable|string',
-        'img' => 'nullable',
-        'weight' => 'nullable|string|max:100',
-        'dimensions' => 'nullable|string|max:255',
-        'colours' => 'nullable|string|max:255',
-        'material' => 'nullable|string|max:255',
-        'is_popular' => 'nullable|boolean',
-    ]);
+        $data = $request->validate([
+            'title' => 'sometimes|required|string|max:255',
+            'sku' => ['nullable','string','max:100', Rule::unique('products','sku')->ignore($product->id)],
+            'category_id' => 'nullable|integer|exists:categories,id',
+            'price' => 'sometimes|required|numeric|min:0',
+            'currency' => 'nullable|string|max:10',
+            'description' => 'nullable|string',
+            'img' => 'nullable',
+            'weight' => 'nullable|string|max:100',
+            'dimensions' => 'nullable|string|max:255',
+            'colours' => 'nullable|string|max:255',
+            'material' => 'nullable|string|max:255',
+            'is_popular' => 'nullable|boolean',
+        ]);
 
-    // Handle uploaded image (if any)
-    if ($request->hasFile('img') && $request->file('img')->isValid()) {
-        // 1) Delete previous image if it resided in public/images
-        if ($product->img && preg_match('#^(?:images/|/images/)#', $product->img)) {
+        // Handle uploaded image (if any)
+        if ($request->hasFile('img') && $request->file('img')->isValid()) {
+            // 1) Delete previous image if it resided in public/images
+            if ($product->img && preg_match('#^(?:images/|/images/)#',  $product->img)) {
             $oldPath = public_path(ltrim($product->img, '/'));
             try {
                 if (file_exists($oldPath)) {
@@ -187,7 +189,14 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
-        $this->authorize('delete', $product);
+         /** @var \App\Models\User|null $user */
+        $user = auth()->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+        if (! (bool) ($user->is_admin ?? false)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
 
         if ($product->img && preg_match('#^(?:products/|storage/|/storage/)#', $product->img)) {
             $old = ltrim(preg_replace('#^/?storage/#', '', $product->img), '/');

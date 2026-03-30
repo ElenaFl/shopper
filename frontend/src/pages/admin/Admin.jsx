@@ -534,6 +534,7 @@ export const Admin = () => {
   };
 
   const handleEditSubmit = async () => {
+    if (!editForm.id) return;
     if (!editForm.title || !editForm.price || !editForm.category_id) {
       alert("Заполните обязательные поля: title, price, category");
       return;
@@ -545,7 +546,7 @@ export const Admin = () => {
           credentials: "include",
         });
       } catch (e) {
-        // ignore
+        // ignore CSRF fetch errors here (we'll still try)
       }
 
       const formData = new FormData();
@@ -559,13 +560,14 @@ export const Admin = () => {
       if (editForm.colours) formData.append("colours", editForm.colours);
       formData.append("is_popular", editForm.is_popular ? "1" : "0");
       formData.append("currency", editForm.currency || "USD");
+      // only append file if user selected a new one
       if (editForm.img instanceof File) formData.append("img", editForm.img);
 
-      // Laravel expects PUT/PATCH — use _method override
+      // Laravel expects PUT/PATCH — use _method override when sending multipart/form-data
       formData.append("_method", "PUT");
 
       const res = await fetch(`${API_BASE}/api/admin/products/${editForm.id}`, {
-        method: "POST",
+        method: "POST", // using POST + _method override
         credentials: "include",
         headers: {
           Accept: "application/json",
@@ -581,12 +583,16 @@ export const Admin = () => {
         if (res.status === 422 && data && data.errors) {
           const messages = Object.values(data.errors).flat().join("\n");
           alert("Validation errors:\n" + messages);
+        } else if (res.status === 401) {
+          alert("Unauthorized — please login as admin.");
+          navigate("/account");
         } else {
           alert(data?.message || `Update failed: ${res.status}`);
         }
         return;
       }
 
+      // success — refresh list and close drawer
       setShowDrawer(false);
       setEditMode(null);
       await loadProductsPage(1, true);
