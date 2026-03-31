@@ -1,114 +1,133 @@
-import React, { useContext } from "react";
-import { Search } from "../components/ui/Search/Search.jsx";
-import { NavLink } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 
 export const Blog = () => {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState("categories"); // categories|fashion|style|accessories|season
+  const navigate = useNavigate();
+
+  // helper to fetch posts (optionally by tag)
+  const fetchPosts = async (tag = null) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (tag && tag !== "categories") params.set("tag", tag);
+      const url = `http://shopper.local/api/blog/posts${params.toString() ? "?" + params.toString() : ""}`;
+      const res = await fetch(url, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error("Fetch error " + res.status);
+      const json = await res.json();
+      // PostResource::collection returns array; if using paginator you'd handle differently
+      const items = Array.isArray(json) ? json : (json?.data ?? []);
+      setPosts(items);
+    } catch (e) {
+      setError("Failed to load posts");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // load all posts on mount
+    fetchPosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // when tab changes, fetch posts for that tag
+  useEffect(() => {
+    if (activeTab === "categories") {
+      fetchPosts();
+    } else {
+      fetchPosts(activeTab);
+    }
+  }, [activeTab]);
+
+  const handleReadMore = (id) => {
+    navigate(`/blog/${id}`);
+  };
+
+  if (loading) return <div className="mt-55">Loading posts...</div>;
+  if (error) return <div className="mt-55 text-red-500">{error}</div>;
+
   return (
     <div className="mt-55 mb-62">
       <h1 className="text-[33px] font-medium mb-9">Blog</h1>
-      {/* общий блок */}
       <div className="flex justify-between gap-x-10">
-        {/* левый блок */}
         <div className="w-[21%]">
-          <div className="mb-16">
-            {/* <Search
-              value={query}
-              onChange={setQuery}
-              onSubmit={(v) => setQuery(v)}
-            /> */}
-          </div>
           <h3 className="text-xl mb-11">Categories</h3>
           <nav className="flex flex-col text-[#707070]">
-            <NavLink to="#" className="mb-2.5">
+            <button
+              onClick={() => setActiveTab("categories")}
+              className={`mb-2.5 text-left ${activeTab === "categories" ? "text-black font-medium" : ""}`}
+            >
+              All categories
+            </button>
+            <button
+              onClick={() => setActiveTab("fashion")}
+              className={`mb-2.5 text-left ${activeTab === "fashion" ? "text-black font-medium" : ""}`}
+            >
               Fashion
-            </NavLink>
-            <NavLink to="#" className="mb-2.5">
+            </button>
+            <button
+              onClick={() => setActiveTab("style")}
+              className={`mb-2.5 text-left ${activeTab === "style" ? "text-black font-medium" : ""}`}
+            >
               Style
-            </NavLink>
-            <NavLink to="#" className="mb-2.5">
+            </button>
+            <button
+              onClick={() => setActiveTab("accessories")}
+              className={`mb-2.5 text-left ${activeTab === "accessories" ? "text-black font-medium" : ""}`}
+            >
               Accessories
-            </NavLink>
-            <NavLink to="#">Season</NavLink>
+            </button>
+            <button
+              onClick={() => setActiveTab("season")}
+              className={`text-left ${activeTab === "season" ? "text-black font-medium" : ""}`}
+            >
+              Season
+            </button>
           </nav>
         </div>
-        {/* правый блок */}
+
         <div className="w-[76%] flex items-center justify-between flex-wrap gap-x-10 gap-y-16">
-          {/* карточка */}
-          <div className="w-112.5">
-            <div className="w-full h-120 mb-6">
-              <img
-                className="w-full h-full object-cover"
-                src="/images/blog12.jpg"
-                alt="watch"
-              />
+          {posts.length === 0 ? (
+            <div className="w-full text-center text-[#707070]">
+              No posts found.
             </div>
-            <div className="mb-1.5 text-sm text-[#707070]">
-              Fashion - October 8, 2020
-            </div>
-            <h3 className="mb-4 text-xl">Top Trends From Spring</h3>
-            <p className="mb-6 text-[#707070]">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. faucibus
-              augue, a maximus elit ex vitae libero...{" "}
-            </p>
-            <span className="text-[#A18A68] font-bold">Read More</span>
-          </div>
-          {/* карточка */}
-          <div className="w-112.5">
-            <div className="w-full h-120 mb-6">
-              <img
-                className="w-full h-full object-cover"
-                src="/images/blog02.jpg"
-                alt="watch"
-              />
-            </div>
-            <div className="mb-1.5 text-sm text-[#707070]">
-              Fashion - October 8, 2020
-            </div>
-            <h3 className="mb-4 text-xl">Top Trends From Spring</h3>
-            <p className="mb-6 text-[#707070]">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. faucibus
-              augue, a maximus elit ex vitae libero...{" "}
-            </p>
-            <span className="text-[#A18A68] font-bold">Read More</span>
-          </div>
-          {/* карточка */}
-          <div className="w-112.5">
-            <div className="w-full h-120 mb-6">
-              <img
-                className="w-full h-full  object-cover"
-                src="/images/blog03.jpg"
-                alt="watch"
-              />
-            </div>
-            <div className="mb-1.5 text-sm text-[#707070]">
-              Fashion - October 8, 2020
-            </div>
-            <h3 className="mb-4 text-xl">Top Trends From Spring</h3>
-            <p className="mb-6 text-[#707070]">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. faucibus
-              augue, a maximus elit ex vitae libero...{" "}
-            </p>
-            <span className="text-[#A18A68] font-bold">Read More</span>
-          </div>
-          {/* карточка */}
-          <div className="w-112.5">
-            <div className="w-full h-120 mb-6">
-              <img
-                className="w-full h-full object-cover"
-                src="/images/blog15.jpg"
-                alt="watch"
-              />
-            </div>
-            <div className="mb-1.5 text-sm text-[#707070]">
-              Fashion - October 8, 2020
-            </div>
-            <h3 className="mb-4 text-xl">Top Trends From Spring</h3>
-            <p className="mb-6 text-[#707070]">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. faucibus
-              augue, a maximus elit ex vitae libero...{" "}
-            </p>
-            <span className="text-[#A18A68] font-bold">Read More</span>
-          </div>
+          ) : (
+            posts.map((p) => (
+              <div key={p.id} className="w-112.5">
+                <div
+                  className="w-full h-120 mb-6 cursor-pointer"
+                  onClick={() => handleReadMore(p.id)}
+                >
+                  <img
+                    className="w-full h-full object-cover"
+                    src={p.img_url || p.img || "/images/placeholder.png"}
+                    alt={p.title}
+                  />
+                </div>
+                <div className="mb-1.5 text-sm text-[#707070]">
+                  {p.published_at
+                    ? new Date(p.published_at).toLocaleDateString()
+                    : ""}
+                </div>
+                <h3 className="mb-4 text-xl">{p.title}</h3>
+                <p className="mb-6 text-[#707070]">{p.excerpt}</p>
+                <span
+                  className="text-[#A18A68] font-bold cursor-pointer"
+                  onClick={() => handleReadMore(p.id)}
+                >
+                  Read More
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
