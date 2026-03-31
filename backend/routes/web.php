@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ReviewController;
 
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -49,6 +50,8 @@ Route::prefix('api')->group(function () {
     Route::get('/user', [AuthController::class, 'me']);
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store']) ->middleware('auth:sanctum');
 });
+
+
 
 
 

@@ -7,28 +7,30 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class PostResource extends JsonResource
 {
     protected function resolveImage(string|null $raw): array
-    {
-        if (! $raw) return [null, null];
-        $raw = trim((string)$raw);
-        if (preg_match('#^https?://#i', $raw)) {
-            return [null, $raw];
-        }
-        if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
-            $clean = ltrim($raw, '/');
-            return [$clean, url($clean)];
-        }
-        $clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
-        $rel = trim($clean, '/');
-        if (! $rel) return [null, null];
-        if (file_exists(public_path($rel))) {
-            return [$rel, url($rel)];
-        }
-        $inImages = 'images/' . ltrim($rel, '/');
-        if (file_exists(public_path($inImages))) {
-            return [$inImages, url($inImages)];
-        }
-        return [$rel, url('/storage/' . $rel)];
+{
+    if (! $raw) {
+        return [null, null];
     }
+
+    // нормализуем строку: убираем ведущие/лишние пробелы и слеши
+    $clean = trim((string) $raw);
+    $clean = ltrim($clean, '/');
+
+    if ($clean === '') {
+        return [null, null];
+    }
+
+    // относительный путь (в базе/ресурсе)
+    $relative = $clean;
+
+    // абсолютный URL через helper url()
+    $absolute = url($relative);
+if (file_exists(public_path($relative))) {
+    $absolute .= '?v=' . filemtime(public_path($relative));
+}
+
+    return [$relative, $absolute];
+}
 
     public function toArray($request)
     {
@@ -59,6 +61,13 @@ class PostResource extends JsonResource
             }),
             'comments' => $this->whenLoaded('comments', function () {
                 return CommentResource::collection($this->comments);
+            }),
+            'tags' => $this->whenLoaded('tags', function () {
+                return $this->tags->map(fn($t) => [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'slug' => $t->slug,
+                ])->values();
             }),
         ];
     }
