@@ -4,13 +4,12 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Http\Resources\AdminProductResource;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-use \Intervention\Image\Facades\Image;
+use Intervention\Image\Facades\Image;
 
 class ProductController extends Controller
 {
@@ -41,7 +40,7 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        /** @var User|null $user */
+        /** @param \Illuminate\Http\Request $request */
         $user = auth()->user();
 
         if (! $user) {
