@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ReviewController;
+use \App\Http\Controllers\Api\Admin\ReviewAdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +30,7 @@ Route::apiResource('products', ProductController::class)->only(['index','show'])
 Route::prefix('admin')->middleware(['web','auth:sanctum'])->group(function () {
     Route::apiResource('categories', AdminCategoryController::class);
     Route::apiResource('products', AdminProductController::class);
+    Route::get('reviews', [ReviewAdminController::class, 'index']);
 });
 
 // Blog routes (public read, auth required for posting/deleting comments)
@@ -49,9 +51,11 @@ Route::middleware('web')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'me']);
-
     // Reviews for products (stateful, auth:sanctum)
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->middleware('auth:sanctum');
+    Route::get('/products/{product}/reviews', [ReviewController::class, 'index'])->middleware('auth:sanctum');
+    Route::get('reviews', [ReviewAdminController::class, 'index'])->middleware('auth:sanctum');
+    Route::delete('/products/{product}/reviews/{review}', [ReviewController::class, 'destroy'])->middleware('auth:sanctum');
 });
 
 

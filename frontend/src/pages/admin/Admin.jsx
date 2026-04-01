@@ -11,6 +11,22 @@ function getXsrf() {
   );
 }
 
+function mergeAndDedupeReviews(existing = [], incoming = []) {
+  const seen = new Set();
+  const out = [];
+  const push = (r) => {
+    const key = `${r.id}-${r.product?.id ?? r.product_id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(r);
+    }
+  };
+  incoming.forEach(push);
+  existing.forEach(push);
+  out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return out;
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
 const CURRENCY_SYMBOLS = { USD: "$", RUB: "₽", EUR: "€", GBP: "£" };
@@ -38,11 +54,7 @@ function apiFetch(path, opts = {}) {
     ...(opts.headers || {}),
   };
 
-  const fetchOpts = {
-    credentials: "include",
-    ...opts,
-    headers,
-  };
+  const fetchOpts = { credentials: "include", ...opts, headers };
 
   if (opts.signal) fetchOpts.signal = opts.signal;
   return fetch(url, fetchOpts);
@@ -188,7 +200,7 @@ export const Admin = () => {
 
   useEffect(() => {
     if (tab === "products") loadProductsPage(1, true);
-    if (tab === "reviews") initAggregateReviews();
+    if (tab === "reviews") loadAdminReviews(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -240,21 +252,26 @@ export const Admin = () => {
       [productId]: { ...(prev[productId] || {}), loading: true, error: null },
     }));
     try {
-      // For reviews we can use public product show which returns reviews
       const res = await apiFetch(`/api/products/${productId}`, {
         headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error("Fetch error: " + res.status);
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       const product = json.data ?? json;
       const reviews = Array.isArray(product?.reviews) ? product.reviews : [];
       setProductReviews((prev) => ({
         ...prev,
-        [productId]: { ...(prev[productId] || {}), loading: false, reviews },
+        [productId]: {
+          ...(prev[productId] || {}),
+          loading: false,
+          reviews,
+          reviews_count: product?.reviews_count ?? reviews.length,
+        },
       }));
       aggLoadedProducts.current.add(productId);
       return reviews;
     } catch (err) {
+      console.error("loadReviewsForProduct error", productId, err);
       setProductReviews((prev) => ({
         ...prev,
         [productId]: {
@@ -262,71 +279,36 @@ export const Admin = () => {
           loading: false,
           error: err.message || "Error",
           reviews: [],
+          reviews_count: 0,
         },
       }));
       return [];
     }
   }
 
-  async function initAggregateReviews() {
-    setAggReviews([]);
+  async function loadAdminReviews(page = 1, perPage = 20) {
     setRLoading(true);
     setRError(null);
-    aggLoadedProducts.current = new Set();
     try {
-      const initialPagesToLoad = 2;
-      let page = 1;
-      const collected = [];
-      while (page <= initialPagesToLoad) {
-        const res = await apiFetch(
-          `/api/admin/products?per_page=${productsPerPage}&page=${page}`,
-          { headers: { Accept: "application/json" } },
-        );
-        if (!res.ok) throw new Error("Fetch error: " + res.status);
-        const json = await res.json();
-        const items = json.data ?? json;
-        for (const prod of items) {
-          const reviews = await loadReviewsForProduct(prod.id);
-          for (const r of reviews)
-            collected.push({
-              ...r,
-              product: { id: prod.id, title: prod.title },
-            });
-        }
-        if (!Array.isArray(items) || items.length === 0) break;
-        page++;
+      const res = await apiFetch(
+        `/api/admin/reviews?per_page=${perPage}&page=${page}`,
+        { headers: { Accept: "application/json" } },
+      );
+      if (!res.ok) throw new Error("Fetch error: " + res.status);
+      const json = await res.json();
+      // json.data expected (resource collection)
+      const items = json.data ?? json;
+      setAggReviews(Array.isArray(items) ? items : []);
+      // keep pagination
+      if (json.meta) {
+        setProductsMeta(json.meta);
+        setProductsPage(json.meta.current_page ?? page);
       }
-      collected.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setAggReviews(collected);
-    } catch (e) {
-      setRError(e.message);
+    } catch (err) {
+      console.error("loadAdminReviews error", err);
+      setRError(err.message || "Error");
     } finally {
       setRLoading(false);
-    }
-  }
-
-  async function loadMoreProductsForReviews() {
-    try {
-      const nextPage = productsPage + 1;
-      await loadProductsPage(nextPage);
-      const start = (nextPage - 1) * productsPerPage;
-      const newProducts = products.slice(start, start + productsPerPage);
-      const collected = [];
-      for (const prod of newProducts) {
-        if (aggLoadedProducts.current.has(prod.id)) continue;
-        const reviews = await loadReviewsForProduct(prod.id);
-        for (const r of reviews)
-          collected.push({ ...r, product: { id: prod.id, title: prod.title } });
-      }
-      if (collected.length) {
-        setAggReviews((prev) =>
-          [...collected, ...prev].sort(
-            (a, b) => new Date(b.created_at) - new Date(a.created_at),
-          ),
-        );
-      }
-    } catch {
-      // ignore
     }
   }
 
@@ -632,6 +614,69 @@ export const Admin = () => {
     }
   };
 
+  // Delete a review/comment by id (admin)
+  async function handleDeleteReview(reviewId, productId) {
+    if (!reviewId) return;
+    if (!confirm("Удалить этот отзыв?")) return;
+
+    try {
+      await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
+        credentials: "include",
+      }).catch(() => {});
+      const res = await fetch(
+        `${API_BASE}/api/products/${productId}/reviews/${reviewId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: { Accept: "application/json", "X-XSRF-TOKEN": getXsrf() },
+        },
+      );
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error(data?.message || `Delete failed: ${res.status}`);
+
+      setAggReviews((prev) =>
+        prev.filter(
+          (r) =>
+            !(
+              r.id === reviewId && (r.product?.id ?? r.product_id) === productId
+            ),
+        ),
+      );
+
+      setProductReviews((prev) => {
+        const item = prev[productId];
+        if (!item || !Array.isArray(item.reviews)) return prev;
+        const newReviews = item.reviews.filter((r) => r.id !== reviewId);
+        return {
+          ...prev,
+          [productId]: {
+            ...item,
+            reviews: newReviews,
+            reviews_count: Math.max(
+              0,
+              (item.reviews_count || item.reviews.length) - 1,
+            ),
+          },
+        };
+      });
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? { ...p, reviews_count: Math.max(0, (p.reviews_count || 0) - 1) }
+            : p,
+        ),
+      );
+
+      alert(data?.message ?? "Review deleted");
+    } catch (err) {
+      console.error("handleDeleteReview error", err);
+      alert(err.message || "Error deleting review");
+    }
+  }
+
   return (
     <div className="admin-root">
       <header className="admin-header">
@@ -706,27 +751,93 @@ export const Admin = () => {
               <div>No reviews found</div>
             ) : (
               <ul className="admin-reviews-list">
-                {aggReviews.map((r) => (
-                  <li key={`${r.id}-${r.product?.id}`}>
-                    <strong>{r.name ?? r.user?.name ?? "User"}</strong>
-                    <span style={{ marginLeft: 8, color: "#777" }}>
-                      {new Date(r.created_at).toLocaleString()}
-                    </span>
-                    <div style={{ fontSize: 13, color: "#333" }}>
-                      {r.comment}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>
-                      Product: {r.product?.title ?? r.product_id}
-                    </div>
-                  </li>
-                ))}
+                {aggReviews.map((r) => {
+                  const prodId = r.product?.id ?? r.product_id;
+                  return (
+                    <li
+                      key={`${r.id}-${prodId}`}
+                      style={{
+                        position: "relative",
+                        paddingRight: 44,
+                        borderBottom: "1px solid #eee",
+                        paddingTop: 12,
+                        paddingBottom: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                            }}
+                          >
+                            <strong>{r.name ?? r.user?.name ?? "User"}</strong>
+                            <span style={{ color: "#777", fontSize: 13 }}>
+                              {new Date(r.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 8,
+                              fontSize: 13,
+                              color: "#333",
+                            }}
+                          >
+                            {r.comment}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 6,
+                              fontSize: 12,
+                              color: "#666",
+                            }}
+                          >
+                            Product: {r.product?.title ?? prodId}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            gap: 8,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            title="Delete review"
+                            onClick={() => {
+                              console.log("click delete", r.id, prodId);
+                              handleDeleteReview(r.id, prodId);
+                            }}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              color: "#dc2626",
+                              fontSize: 18,
+                              cursor: "pointer",
+                              padding: 6,
+                            }}
+                          >
+                            ✖
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
-            <div style={{ marginTop: 12 }}>
-              <button onClick={loadMoreProductsForReviews}>
-                Load more products → load their reviews
-              </button>
-            </div>
+            <div style={{ marginTop: 12 }}></div>
           </section>
         )}
       </main>
