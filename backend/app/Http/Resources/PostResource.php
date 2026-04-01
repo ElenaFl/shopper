@@ -56,12 +56,10 @@ if (file_exists(public_path($relative))) {
             'published_at' => $this->published_at?->toDateTimeString(),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
-            'comments_count' => $this->when(isset($this->comments), function () {
-                return is_array($this->comments) ? count($this->comments) : ($this->comments()->count() ?? 0);
-            }),
             'comments' => $this->whenLoaded('comments', function () {
                 return CommentResource::collection($this->comments);
             }),
+            'comments_count' => $this->comments_count ?? ($this->whenLoaded('comments') ? count($this->comments) : 0),
             'tags' => $this->whenLoaded('tags', function () {
                 return $this->tags->map(fn($t) => [
                     'id' => $t->id,

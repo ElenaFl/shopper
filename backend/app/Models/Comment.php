@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Comment extends Model
 {
@@ -11,6 +12,7 @@ class Comment extends Model
         'post_id',
         'user_id',
         'body',
+        'parent_id',
     ];
 
     // Post relation
@@ -23,5 +25,17 @@ class Comment extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    // parent comment
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Comment::class, 'parent_id');
+    }
+
+    // child replies
+    public function children(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'parent_id')->orderBy('created_at', 'asc');
     }
 }
