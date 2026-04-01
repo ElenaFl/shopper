@@ -45,7 +45,9 @@ class PostController extends Controller
         $post->increment('views');
 
         // load author and comments with their users and tags
-        $post->load(['author', 'comments.user', 'tags']);
+        $post->load(['author', 'tags', 'comments' => function($q) {
+            $q->whereNull('parent_id')->orderByDesc('created_at')->with(['user','children.user']);
+        }]);
 
         return new PostResource($post);
     }

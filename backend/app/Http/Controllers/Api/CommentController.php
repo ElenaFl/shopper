@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Post;
 use App\Models\Comment;
 use App\Http\Resources\CommentResource;
+use App\Http\Resources\PostResource;
 
 class CommentController extends Controller
 {
@@ -21,6 +22,7 @@ class CommentController extends Controller
     {
         $data = $request->validate([
             'body' => 'required|string|max:2000',
+            'parent_id' => 'nullable|integer|exists:comments,id',
         ]);
 
         $user = $request->user();
@@ -32,6 +34,7 @@ class CommentController extends Controller
             'post_id' => $post->id,
             'user_id' => $user->id,
             'body' => $data['body'],
+            'parent_id' => $data['parent_id'] ?? null,
         ]);
 
         // reload comments count if you want; load user relation for resource
@@ -40,7 +43,14 @@ class CommentController extends Controller
         $post->saveQuietly();
         $comment->load('user');
 
-        return (new CommentResource($comment))->response()->setStatusCode(201);
+        $post = Post::with(['author', 'tags', 'comments' => function ($q) {
+            $q->whereNull('parent_id')->orderByDesc('created_at')->with(['user','children.user']);
+        }])->find($post->id);
+
+        return response()->json([
+            'post' => new PostResource($post),
+            'comment' => new CommentResource($comment),
+        ], 201);
     }
 
     public function destroy(Request $request, Comment $comment)

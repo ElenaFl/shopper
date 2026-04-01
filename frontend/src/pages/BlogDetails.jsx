@@ -130,6 +130,55 @@ export const BlogDetails = () => {
     }
   };
 
+  // Insert created comment into local post state without reloading entire post (preserve scroll)
+  const insertCommentIntoState = (created) => {
+    if (!created || !created.id) return;
+    setPost((p) => {
+      const prevComments = Array.isArray(p.comments) ? p.comments.slice() : [];
+
+      // If server returned children as nested tree, but created is flat, we attach accordingly.
+      if (!created.parent_id) {
+        // root comment — append preserving chronological order (assuming server sorts asc)
+        prevComments.push(created);
+      } else {
+        // reply — try to attach to parent. If parent exists as root, add to its children.
+        let attached = false;
+        const newComments = prevComments.map((c) => {
+          if (c.id === created.parent_id) {
+            const children = Array.isArray(c.children)
+              ? c.children.slice()
+              : [];
+            children.push(created);
+            attached = true;
+            return { ...c, children };
+          }
+          // if parent already has children nested deeper, keep unchanged
+          return c;
+        });
+
+        if (attached) {
+          // replace with modified list
+          return {
+            ...p,
+            comments: newComments,
+            comments_count:
+              typeof p.comments_count !== "undefined"
+                ? newComments.length
+                : p.comments_count,
+          };
+        }
+
+        // parent not found among current roots — just push created (fallback)
+        prevComments.push(created);
+      }
+
+      const updated = { ...p, comments: prevComments };
+      if (typeof updated.comments_count !== "undefined")
+        updated.comments_count = prevComments.length;
+      return updated;
+    });
+  };
+
   const submitComment = async (e, parentId = null) => {
     e.preventDefault();
     if (!user) {
@@ -176,35 +225,21 @@ export const BlogDetails = () => {
 
       const json = await res.json().catch(() => null);
 
-      // backend may return { post, comment } or comment
-      if (json) {
-        if (json.post) {
-          const payloadPost = json.post?.data ?? json.post;
-          setPost(payloadPost);
-        } else if (json.comment) {
-          const created = json.comment?.data ?? json.comment;
-          setPost((p) => {
-            const newComments = Array.isArray(p.comments)
-              ? [...p.comments, created]
-              : [created];
-            return {
-              ...p,
-              comments: newComments,
-              comments_count: newComments.length,
-            };
-          });
-        } else {
-          const created = json?.data ?? json;
-          setPost((p) => {
-            const newComments = Array.isArray(p.comments)
-              ? [...p.comments, created]
-              : [created];
-            return {
-              ...p,
-              comments: newComments,
-              comments_count: newComments.length,
-            };
-          });
+      // Try to use created comment from response to insert into state and avoid full reload (prevents page jump)
+      const created =
+        json?.comment ?? json?.data ?? json?.review ?? json ?? null;
+
+      if (created && created.id) {
+        insertCommentIntoState(created);
+      } else {
+        // fallback: reload post (rare), but preserve scroll position
+        try {
+          const scrollY = window.scrollY || window.pageYOffset;
+          await loadPost();
+          // restore scroll to previous position to avoid jump
+          window.scrollTo({ top: scrollY, behavior: "auto" });
+        } catch (e) {
+          // ignore
         }
       }
 
@@ -232,6 +267,142 @@ export const BlogDetails = () => {
     return "/images/avatar-placeholder.png";
   };
 
+  // Build tree from flat comments if needed
+  const buildTree = (comments = []) => {
+    // map by id
+    const map = new Map();
+    comments.forEach((c) =>
+      map.set(c.id, {
+        ...c,
+        children: Array.isArray(c.children) ? [...c.children] : [],
+      }),
+    );
+
+    // If children field exists on any item, assume server returned tree; return root nodes
+    const hasChildrenField = comments.some((c) => Array.isArray(c.children));
+    if (hasChildrenField) {
+      return comments.filter((c) => !c.parent_id).map((c) => map.get(c.id));
+    }
+
+    // else build from parent_id pointers
+    const roots = [];
+    map.forEach((node) => {
+      if (node.parent_id) {
+        const parent = map.get(node.parent_id);
+        if (parent) {
+          parent.children = parent.children || [];
+          parent.children.push(node);
+        } else {
+          roots.push(node); // parent missing — treat as root
+        }
+      } else {
+        roots.push(node);
+      }
+    });
+
+    // ensure children arrays sorted by created_at asc
+    const sortRec = (arr) => {
+      arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      arr.forEach((n) => {
+        if (Array.isArray(n.children) && n.children.length) sortRec(n.children);
+      });
+    };
+    sortRec(roots);
+    return roots;
+  };
+
+  // recursive renderer for a comment node (returns JSX)
+  const renderComment = (c, level = 0) => {
+    const indentClass = level > 0 ? "ml-12 mt-4" : "";
+    return (
+      <div key={c.id} className={`w-full mb-6 ${indentClass}`}>
+        <div className="mb-4 flex items-start gap-x-4">
+          <img
+            src={
+              c.user?.avatar_url ||
+              avatarFor(c.user?.name) ||
+              "/images/avatar-placeholder.png"
+            }
+            alt={c.user?.name || "User"}
+            className="w-12 h-12 rounded-full object-cover shrink-0"
+          />
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-x-3">
+                <h3 className="text-xl">
+                  {c.user?.name || c.user_name || "User"}
+                </h3>
+                <span
+                  className="text-sm text-[#707070]"
+                  title={c.created_at || ""}
+                >
+                  {timeAgo(c.created_at)}
+                </span>
+              </div>
+              <div className="flex items-center gap-x-2">
+                <button
+                  onClick={() => setReplyFor(c.id)}
+                  className="text-sm text-blue-600"
+                >
+                  Reply
+                </button>
+                {canDeleteComment(c) && (
+                  <button
+                    onClick={() => handleDeleteComment(c.id)}
+                    className="text-sm text-red-500 ml-3"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="text-[#707070]">{c.body}</p>
+
+            {/* reply box for this comment */}
+            {replyFor === c.id && (
+              <form onSubmit={(e) => submitComment(e, c.id)} className="mt-4">
+                <textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  className="w-full mb-2 border-b border-[#D8D8D08]"
+                  rows={3}
+                  placeholder="Your reply..."
+                  required
+                />
+                <div className="flex gap-x-2">
+                  <button
+                    type="submit"
+                    disabled={submittingReply}
+                    className={`px-4 py-2 text-white rounded ${submittingReply ? "bg-gray-300" : "bg-black"}`}
+                  >
+                    {submittingReply ? "Posting..." : "Post Reply"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyFor(null);
+                      setReplyText("");
+                    }}
+                    className="px-4 py-2 border rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* render children */}
+            {Array.isArray(c.children) && c.children.length > 0 && (
+              <div className="mt-4">
+                {c.children.map((ch) => renderComment(ch, level + 1))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) return <div className="mt-55">Loading...</div>;
   if (error) return <div className="mt-55 text-red-500">{error}</div>;
   if (!post) return <div className="mt-55">Post not found</div>;
@@ -242,9 +413,14 @@ export const BlogDetails = () => {
   const sortedComments = [...allComments].sort(
     (a, b) => new Date(a.created_at) - new Date(b.created_at),
   );
-  const displayComments = showAllComments
-    ? sortedComments.slice().reverse()
-    : sortedComments.slice(-COMMENTS_PAGE_SIZE).reverse();
+
+  // build tree roots
+  const roots = buildTree(sortedComments);
+
+  // pagination by root comments (keeps replies attached)
+  const visibleRoots = showAllComments
+    ? roots.slice().reverse()
+    : roots.slice(-COMMENTS_PAGE_SIZE).reverse();
 
   return (
     <div className="mt-55 mb-62">
@@ -335,92 +511,10 @@ export const BlogDetails = () => {
             Comments ({post.comments?.length ?? 0})
           </h2>
 
-          {displayComments.length === 0 ? (
+          {visibleRoots.length === 0 ? (
             <div>No comments yet.</div>
           ) : (
-            displayComments.map((c) => (
-              <div key={c.id} className="w-full mb-12">
-                <div className="mb-4 flex items-start gap-x-4">
-                  <img
-                    src={
-                      c.user?.avatar_url ||
-                      avatarFor(c.user?.name) ||
-                      "/images/avatar-placeholder.png"
-                    }
-                    alt={c.user?.name || "User"}
-                    className="w-12 h-12 rounded-full object-cover shrink-0"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-x-3">
-                        <h3 className="text-xl">
-                          {c.user?.name || c.user_name || "User"}
-                        </h3>
-                        <span
-                          className="text-sm text-[#707070]"
-                          title={c.created_at || ""}
-                        >
-                          {timeAgo(c.created_at)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-x-2">
-                        <button
-                          onClick={() => setReplyFor(c.id)}
-                          className="text-sm text-blue-600"
-                        >
-                          Reply
-                        </button>
-                        {canDeleteComment(c) && (
-                          <button
-                            onClick={() => handleDeleteComment(c.id)}
-                            className="text-sm text-red-500 ml-3"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-[#707070]">{c.body}</p>
-
-                    {/* reply box for this comment */}
-                    {replyFor === c.id && (
-                      <form
-                        onSubmit={(e) => submitComment(e, c.id)}
-                        className="mt-4"
-                      >
-                        <textarea
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          className="w-full mb-2 border-b border-[#D8D8D08]"
-                          rows={3}
-                          placeholder="Your reply..."
-                          required
-                        />
-                        <div className="flex gap-x-2">
-                          <button
-                            type="submit"
-                            disabled={submittingReply}
-                            className={`px-4 py-2 text-white rounded ${submittingReply ? "bg-gray-300" : "bg-black"}`}
-                          >
-                            {submittingReply ? "Posting..." : "Post Reply"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReplyFor(null);
-                              setReplyText("");
-                            }}
-                            className="px-4 py-2 border rounded"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+            visibleRoots.map((c) => renderComment(c))
           )}
 
           {!showAllComments && allComments.length > COMMENTS_PAGE_SIZE && (

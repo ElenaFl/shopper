@@ -37,8 +37,8 @@ Route::prefix('blog')->group(function () {
     Route::get('posts/{post}', [PostController::class, 'show']);
     Route::middleware('web')->group(function () {
     Route::post('posts/{post}/comments', [CommentController::class, 'store'])->middleware('auth:sanctum');
-    });
     Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->middleware('auth:sanctum');
+    });
 });
 
 // Auth and review routes (stateful) — run under web middleware so sessions/CSRF work
