@@ -7,6 +7,8 @@ export const BlogDetails = () => {
   const navigate = useNavigate();
   const { user, fetchUser } = useContext(AuthContext);
 
+  const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
+
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,7 +23,7 @@ export const BlogDetails = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://shopper.local/api/blog/posts/${id}`, {
+      const res = await fetch(`${API_BASE}/api/blog/posts/${id}`, {
         credentials: "include",
         headers: { Accept: "application/json" },
       });
@@ -41,6 +43,7 @@ export const BlogDetails = () => {
 
   useEffect(() => {
     loadPost();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const openImage = (src) => {
@@ -63,28 +66,28 @@ export const BlogDetails = () => {
     if (!commentText.trim()) return;
     setSubmitting(true);
     try {
-      await fetch(`${process.env.VITE_API_BASE || ""}/sanctum/csrf-cookie`, {
+      // ensure CSRF cookie for Sanctum (stateful)
+      await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
         credentials: "include",
       }).catch(() => {});
       const raw = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "";
       const xsrf = raw ? decodeURIComponent(raw) : "";
 
-      const res = await fetch(
-        `http://shopper.local/api/blog/posts$/{id}/comments`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-XSRF-TOKEN": xsrf,
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ body: commentText }),
+      const res = await fetch(`${API_BASE}/api/blog/posts/${id}/comments`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-XSRF-TOKEN": xsrf,
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "application/json",
         },
-      );
+        body: JSON.stringify({ body: commentText }),
+      });
 
       if (!res.ok) {
         if (res.status === 401) {
+          // try to refresh user info (may trigger login flow)
           await fetchUser?.();
           throw new Error("Unauthorized");
         }
@@ -92,14 +95,32 @@ export const BlogDetails = () => {
         throw new Error(data?.message || "Failed to submit comment");
       }
 
-      const json = await res.json();
-      const created = json?.data ?? json;
-      setPost((p) => ({
-        ...p,
-        comments: Array.isArray(p.comments)
-          ? [...p.comments, created]
-          : [created],
-      }));
+      const json = await res.json().catch(() => null);
+
+      // backend may return { post, comment } or comment resource
+      if (json) {
+        if (json.post) {
+          const payload = json.post?.data ?? json.post;
+          setPost(payload);
+        } else if (json.comment) {
+          const created = json.comment?.data ?? json.comment;
+          setPost((p) => ({
+            ...p,
+            comments: Array.isArray(p?.comments)
+              ? [...p.comments, created]
+              : [created],
+          }));
+        } else {
+          const created = json?.data ?? json;
+          setPost((p) => ({
+            ...p,
+            comments: Array.isArray(p?.comments)
+              ? [...p.comments, created]
+              : [created],
+          }));
+        }
+      }
+
       setCommentText("");
     } catch (e) {
       alert(e.message || "Error");
@@ -168,7 +189,7 @@ export const BlogDetails = () => {
           {user ? (
             <form onSubmit={submitComment} className="mb-16">
               <textarea
-                className="w-full mb-4 border-b border-[#D8D8D8]"
+                className="w-full mb-4 border-b border-[#D8D8D08]"
                 rows={4}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
