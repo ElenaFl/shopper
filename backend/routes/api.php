@@ -35,7 +35,9 @@ Route::prefix('admin')->middleware(['web','auth:sanctum'])->group(function () {
 Route::prefix('blog')->group(function () {
     Route::get('posts', [PostController::class, 'index']);
     Route::get('posts/{post}', [PostController::class, 'show']);
+
     Route::middleware('web')->group(function () {
+    Route::get('posts/{post}/comments', [CommentController::class, 'index'])->middleware('auth:sanctum');
     Route::post('posts/{post}/comments', [CommentController::class, 'store'])->middleware('auth:sanctum');
     Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->middleware('auth:sanctum');
     });

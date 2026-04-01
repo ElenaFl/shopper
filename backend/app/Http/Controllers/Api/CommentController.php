@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use App\Models\Post;
 use App\Models\Comment;
 use App\Http\Resources\CommentResource;
-use App\Http\Resources\PostResource;
 
 class CommentController extends Controller
 {
@@ -17,66 +16,97 @@ class CommentController extends Controller
         $this->middleware('auth:sanctum');
     }
 
-    // POST /api/blog/posts/{post}/comments
-    public function store(Request $request, Post $post)
+    public function index($postId)
     {
-        $data = $request->validate([
-            'body' => 'required|string|max:2000',
-            'parent_id' => 'nullable|integer|exists:comments,id',
-        ]);
+        $comments = Comment::with(['user', 'children.user'])
+            ->where('post_id', $postId)
+            ->orderBy('created_at', 'asc')
+            ->get();
 
-        $user = $request->user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
-        }
-
-        $comment = Comment::create([
-            'post_id' => $post->id,
-            'user_id' => $user->id,
-            'body' => $data['body'],
-            'parent_id' => $data['parent_id'] ?? null,
-        ]);
-
-        // reload comments count if you want; load user relation for resource
-
-        $post->comments_count = $post->comments()->count();
-        $post->saveQuietly();
-        $comment->load('user');
-
-        $post = Post::with(['author', 'tags', 'comments' => function ($q) {
-            $q->whereNull('parent_id')->orderByDesc('created_at')->with(['user','children.user']);
-        }])->find($post->id);
-
-        return response()->json([
-            'post' => new PostResource($post),
-            'comment' => new CommentResource($comment),
-        ], 201);
+        return CommentResource::collection($comments);
     }
 
-    public function destroy(Request $request, Comment $comment)
-    {
-        $user = $request->user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+    // POST /api/blog/posts/{post}/comments
+    public function store(Request $request, Post $post)
+{
+    $user = $request->user();
+    if (! $user) {
+        return response()->json(['message' => 'Unauthenticated.'], 401);
+    }
+
+    $data = $request->validate([
+        'body' => 'required|string|max:2000',
+        'parent_id' => 'nullable|exists:comments,id',
+    ]);
+
+    // If parent_id provided, ensure parent is a root comment (no nesting deeper than 1)
+    if (!empty($data['parent_id'])) {
+        $parent = \App\Models\Comment::find($data['parent_id']);
+        if (! $parent) {
+            return response()->json(['message' => 'Parent comment not found'], 404);
         }
-
-        // allow if owner or admin (adjust admin check to your app)
-        $isOwner = $comment->user_id === $user->id;
-        $isAdmin = $user->is_admin ?? false; // замените на вашу логику проверки админа
-
-        if (! $isOwner && ! $isAdmin) {
-            return response()->json(['message' => 'Forbidden.'], 403);
+        if ($parent->parent_id !== null) {
+            return response()->json(['message' => 'Replies to replies are not allowed'], 422);
         }
+    }
 
-        $post = $comment->post; // загрузим связанный пост
-        $comment->delete();
+    $comment = Comment::create([
+        'post_id' => $post->id,
+        'user_id' => $user->id,
+        'body' => $data['body'],
+        'parent_id' => $data['parent_id'] ?? null,
+    ]);
 
-        // обновляем агрегат с количеством комментариев
-        if ($post) {
-            $post->comments_count = $post->comments()->count();
-            $post->saveQuietly();
+    $comment->load('user');
+
+    return (new CommentResource($comment))->response()->setStatusCode(201);
+}
+
+
+    /**
+ * DELETE /api/blog/comments/{comment}
+ */
+/**
+ * DELETE /api/blog/comments/{comment}
+ */
+public function destroy(Comment $comment)
+{
+    $user = request()->user();
+
+    // Authorization: only owner or admin can delete
+    if (! $user || ($comment->user_id !== $user->id && !($user->is_admin ?? false))) {
+        return response()->json(['message' => 'Forbidden'], 403);
+    }
+
+    // If this is a reply (has parent), allow owner to remove it completely if no children,
+    // otherwise soft-delete to preserve reply thread.
+    if ($comment->parent_id !== null) {
+        $hasChildren = Comment::where('parent_id', $comment->id)->exists();
+
+        if ($hasChildren) {
+            $comment->update([
+                'is_deleted' => true,
+                'deleted_at' => now(),
+                'deleted_by' => $user->id,
+            ]);
+        } else {
+            $comment->delete();
         }
 
         return response()->json(null, 204);
     }
+
+    // Root comment:
+    // If it has children -> soft-delete (keep children visible)
+    // If no children -> soft-delete as well (keeps behaviour consistent)
+    $hasChildren = Comment::where('parent_id', $comment->id)->exists();
+
+    $comment->update([
+        'is_deleted' => true,
+        'deleted_at' => now(),
+        'deleted_by' => $user->id,
+    ]);
+
+    return response()->json(null, 204);
+}
 }

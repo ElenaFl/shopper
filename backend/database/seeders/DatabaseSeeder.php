@@ -20,8 +20,11 @@ class DatabaseSeeder extends Seeder
             ProductsSeeder::class,
             AdminUserSeeder::class,
             DiscountSeeder::class,
-            BlogSeeder::class
+            BlogSeeder::class,
+            SmartUsersAvatarSeeder::class,
+            MarkAuthorCommentsDeletedSeeder::class,
+            UndoMarkAuthorCommentsDeletedSeeder::class,
+            DeleteAuthorCommentsSeeder::class
         ]);
-
     }
 }
