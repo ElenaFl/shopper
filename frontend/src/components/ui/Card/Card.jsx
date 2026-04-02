@@ -9,6 +9,39 @@ import { Link } from "react-router-dom";
  props.className, props.style — дополнительный класс/стиль (для анимации)
 */
 
+// helper: безопасно форматируем валюту
+const formatMoney = (value, currencyLabel) => {
+  if (value == null) return "";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  try {
+    if (
+      currencyLabel &&
+      typeof currencyLabel === "string" &&
+      currencyLabel.length === 3
+    ) {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: currencyLabel,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(n);
+    }
+  } catch (e) {
+    // fallback
+  }
+  return n.toFixed(2) + (currencyLabel ? " " + currencyLabel : "");
+};
+
+// compute display percent for UI only (non-authoritative)
+const computeDisplayPercent = (original, final) => {
+  const o = Number(original);
+  const f = Number(final);
+  if (!Number.isFinite(o) || !Number.isFinite(f) || o <= 0) return null;
+  const pct = Math.round(((o - f) / o) * 100);
+  return pct > 0 ? `-${pct}%` : null;
+};
+
 const safeSrc = (img, img_url) => {
   if (img_url && typeof img_url === "string" && img_url.startsWith("http"))
     return img_url;
@@ -17,36 +50,27 @@ const safeSrc = (img, img_url) => {
   return img.startsWith("/") ? base + img : base + "/" + img;
 };
 
-// Robust discount extractor
 function normalizeDiscount(raw) {
   if (!raw) return null;
 
-  // If discount is nested under discount.discount or discounts array
   if (Array.isArray(raw) && raw.length > 0) {
     return normalizeDiscount(raw[0]);
   }
 
   if (typeof raw === "object") {
-    // Sometimes API returns { discount: { ... } }
     if (raw.discount && typeof raw.discount === "object") {
       return normalizeDiscount(raw.discount);
     }
 
-    // Common shapes:
-    // { type: 'percent', value: 10 }
-    // { price_after: 12.5 }
-    // { value: 10, currency: 'USD' }
-    // { amount: 10, currency: 'USD' }
     const type = raw.type ?? null;
     const value = raw.value ?? raw.amount ?? null;
     const price_after = raw.price_after ?? raw.priceAfter ?? null;
     const currency = raw.currency ?? raw.currency_code ?? null;
 
-    // If object already contains price_after, prefer that
     if (price_after != null) {
       return {
-        type: "fixed",
-        value: value,
+        type: type || (price_after != null ? "fixed" : null),
+        value: value != null ? Number(value) : null,
         price_after: Number(price_after),
         currency,
       };
@@ -61,7 +85,6 @@ function normalizeDiscount(raw) {
     }
   }
 
-  // Unknown format -> null
   return null;
 }
 
@@ -69,6 +92,8 @@ export const Card = React.memo((props) => {
   const { id, title, currency, price, img } = props.details || {};
   const rawDiscount =
     props.details?.discount ?? props.details?.discounts ?? null;
+
+  // Normalize incoming discount shape (but avoid heavy calculations)
   const discount = normalizeDiscount(rawDiscount);
 
   const { width, height, heightImg } = props.size || {};
@@ -78,30 +103,59 @@ export const Card = React.memo((props) => {
     v === null || v === undefined || v === "" ? null : Number(String(v).trim());
 
   const origPrice = parsePrice(price);
-  const priceAfter = parsePrice(discount?.price_after ?? discount?.price_after); // normalized name
 
-  const formatPrice = (value, currencyLabel) => {
-    if (value == null || isNaN(Number(value))) return "";
-    const num = Number(value).toFixed(2);
-    return `${num}${currencyLabel ? " " + currencyLabel : ""}`;
-  };
+  // Prefer server final_price (authoritative). Fallback to discount.price_after or client calc (display only)
+  const serverFinalRaw = props.details?.final_price ?? null;
+  const serverFinal =
+    serverFinalRaw != null && !Number.isNaN(Number(serverFinalRaw))
+      ? Number(serverFinalRaw)
+      : null;
 
-  const discountPercent = (() => {
-    if (!discount) return null;
-    if (discount.type === "percent" && discount.value != null) {
-      const v = Number(discount.value);
-      if (!isNaN(v)) return `-${v.toFixed(0)}%`;
-      return null;
+  let priceAfter = null;
+  if (serverFinal != null) {
+    priceAfter = serverFinal;
+  } else if (
+    discount?.price_after != null &&
+    Number.isFinite(Number(discount.price_after))
+  ) {
+    priceAfter = Number(discount.price_after);
+  } else if (
+    discount?.type === "percent" &&
+    discount?.value != null &&
+    !Number.isNaN(Number(discount.value)) &&
+    origPrice != null
+  ) {
+    priceAfter = Math.max(
+      0,
+      Number((origPrice * (1 - Number(discount.value) / 100)).toFixed(2)),
+    );
+  } else if (
+    discount?.type === "fixed" &&
+    discount?.value != null &&
+    origPrice != null
+  ) {
+    priceAfter = Math.max(
+      0,
+      Number((origPrice - Number(discount.value)).toFixed(2)),
+    );
+  } else {
+    priceAfter = origPrice;
+  }
+
+  const hasDiscount =
+    Number.isFinite(Number(origPrice)) &&
+    Number.isFinite(Number(priceAfter)) &&
+    Number(origPrice) > Number(priceAfter);
+
+  const discountPercentLabel = (() => {
+    if (discount && discount.type === "percent" && discount.value != null) {
+      return `-${Math.round(Number(discount.value))}%`;
     }
-    if (origPrice != null && origPrice > 0 && priceAfter != null) {
-      const pct = Math.round((1 - priceAfter / origPrice) * 100);
-      return `-${pct}%`;
-    }
-    return null;
+    // fallback compute if server didn't provide percent
+    return computeDisplayPercent(origPrice, priceAfter);
   })();
 
-  const details = props.details || {};
-  const imgSrc = safeSrc(details.img, details.img_url);
+  const imgSrc = safeSrc(img, props.details?.img_url);
 
   return (
     <div
@@ -142,7 +196,7 @@ export const Card = React.memo((props) => {
       <p className="text-xl mb-4">{title}</p>
 
       <div>
-        {priceAfter != null ? (
+        {hasDiscount ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
@@ -150,33 +204,25 @@ export const Card = React.memo((props) => {
                 textDecoration: "line-through",
                 marginRight: 8,
               }}
-              aria-label={`Old price ${formatPrice(origPrice, currency)}`}
-              title={`Old price ${formatPrice(origPrice, currency)}`}
+              aria-label={`Old price ${formatMoney(origPrice, currency)}`}
+              title={`Old price ${formatMoney(origPrice, currency)}`}
             >
-              {formatPrice(origPrice, currency) || ""}
+              {formatMoney(origPrice, currency) || ""}
             </span>
 
             <span style={{ color: "red", fontWeight: 700 }}>
-              {formatPrice(priceAfter, currency) || ""}
+              {formatMoney(priceAfter, currency) || ""}
             </span>
 
-            {discountPercent && (
+            {discountPercentLabel && (
               <span style={{ marginLeft: 8, color: "green" }}>
-                {discountPercent}
+                {discountPercentLabel}
               </span>
             )}
           </div>
         ) : (
-          <div style={{ color: "#000", fontWeight: 600 }}>
-            {formatPrice(origPrice, currency) || ""}
-            {/* if there's a percent discount but no explicit priceAfter, show percent */}
-            {!priceAfter &&
-            discount?.type === "percent" &&
-            discount?.value != null ? (
-              <span style={{ marginLeft: 8, color: "green" }}>
-                {`-${Number(discount.value).toFixed(0)}%`}
-              </span>
-            ) : null}
+          <div style={{ color: "#6b7280", fontWeight: 600 }}>
+            {formatMoney(origPrice, currency) || ""}
           </div>
         )}
       </div>

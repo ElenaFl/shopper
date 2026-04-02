@@ -157,7 +157,7 @@ class ProductController extends Controller
         $product->increment('views');
 
         // загрузим нужные отношения и вернем ресурс
-        $product->load(['reviews.user', 'category', 'discounts']);
+        $product->load(['reviews.user', 'category', 'activeDiscount']);
         return new ProductResource($product);
     }
 

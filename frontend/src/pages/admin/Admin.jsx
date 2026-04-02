@@ -11,25 +11,25 @@ function getXsrf() {
   );
 }
 
-function mergeAndDedupeReviews(existing = [], incoming = []) {
-  const seen = new Set();
-  const out = [];
-  const push = (r) => {
-    const key = `${r.id}-${r.product?.id ?? r.product_id}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(r);
-    }
-  };
-  incoming.forEach(push);
-  existing.forEach(push);
-  out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  return out;
-}
+// function mergeAndDedupeReviews(existing = [], incoming = []) {
+//   const seen = new Set();
+//   const out = [];
+//   const push = (r) => {
+//     const key = `${r.id}-${r.product?.id ?? r.product_id}`;
+//     if (!seen.has(key)) {
+//       seen.add(key);
+//       out.push(r);
+//     }
+//   };
+//   incoming.forEach(push);
+//   existing.forEach(push);
+//   out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+//   return out;
+// }
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
-const CURRENCY_SYMBOLS = { USD: "$", RUB: "₽", EUR: "€", GBP: "£" };
+const CURRENCY_SYMBOLS = { $: "$", RUB: "₽", EUR: "€", GBP: "£" };
 function currencySymbolFromCode(code) {
   if (!code) return null;
   return CURRENCY_SYMBOLS[String(code).toUpperCase()] || code;
@@ -97,7 +97,7 @@ export const Admin = () => {
     material: "",
     colours: "",
     is_popular: false,
-    currency: "USD",
+    currency: "$",
     discount: "",
   });
 
@@ -115,7 +115,7 @@ export const Admin = () => {
       material: "",
       colours: "",
       is_popular: false,
-      currency: "USD",
+      currency: "$",
       discount: "",
     });
 
@@ -142,7 +142,7 @@ export const Admin = () => {
     material: "",
     colours: "",
     is_popular: false,
-    currency: "USD",
+    currency: "$",
     discount: "",
   });
 
@@ -246,45 +246,45 @@ export const Admin = () => {
     }
   }
 
-  async function loadReviewsForProduct(productId) {
-    setProductReviews((prev) => ({
-      ...prev,
-      [productId]: { ...(prev[productId] || {}), loading: true, error: null },
-    }));
-    try {
-      const res = await apiFetch(`/api/products/${productId}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error("Fetch error: " + res.status);
-      const json = await res.json().catch(() => null);
-      const product = json.data ?? json;
-      const reviews = Array.isArray(product?.reviews) ? product.reviews : [];
-      setProductReviews((prev) => ({
-        ...prev,
-        [productId]: {
-          ...(prev[productId] || {}),
-          loading: false,
-          reviews,
-          reviews_count: product?.reviews_count ?? reviews.length,
-        },
-      }));
-      aggLoadedProducts.current.add(productId);
-      return reviews;
-    } catch (err) {
-      console.error("loadReviewsForProduct error", productId, err);
-      setProductReviews((prev) => ({
-        ...prev,
-        [productId]: {
-          ...(prev[productId] || {}),
-          loading: false,
-          error: err.message || "Error",
-          reviews: [],
-          reviews_count: 0,
-        },
-      }));
-      return [];
-    }
-  }
+  // async function loadReviewsForProduct(productId) {
+  //   setProductReviews((prev) => ({
+  //     ...prev,
+  //     [productId]: { ...(prev[productId] || {}), loading: true, error: null },
+  //   }));
+  //   try {
+  //     const res = await apiFetch(`/api/products/${productId}`, {
+  //       headers: { Accept: "application/json" },
+  //     });
+  //     if (!res.ok) throw new Error("Fetch error: " + res.status);
+  //     const json = await res.json().catch(() => null);
+  //     const product = json.data ?? json;
+  //     const reviews = Array.isArray(product?.reviews) ? product.reviews : [];
+  //     setProductReviews((prev) => ({
+  //       ...prev,
+  //       [productId]: {
+  //         ...(prev[productId] || {}),
+  //         loading: false,
+  //         reviews,
+  //         reviews_count: product?.reviews_count ?? reviews.length,
+  //       },
+  //     }));
+  //     aggLoadedProducts.current.add(productId);
+  //     return reviews;
+  //   } catch (err) {
+  //     console.error("loadReviewsForProduct error", productId, err);
+  //     setProductReviews((prev) => ({
+  //       ...prev,
+  //       [productId]: {
+  //         ...(prev[productId] || {}),
+  //         loading: false,
+  //         error: err.message || "Error",
+  //         reviews: [],
+  //         reviews_count: 0,
+  //       },
+  //     }));
+  //     return [];
+  //   }
+  // }
 
   async function loadAdminReviews(page = 1, perPage = 20) {
     setRLoading(true);
@@ -324,6 +324,7 @@ export const Admin = () => {
               <th>Image_path</th>
               <th>SKU</th>
               <th>Price</th>
+              <th>Final Price</th>
               <th>Currency</th>
               <th>Discount</th>
               <th>Weight</th>
@@ -353,7 +354,7 @@ export const Admin = () => {
                       material: p.material ?? "",
                       colours: p.colours ?? "",
                       is_popular: !!p.is_popular,
-                      currency: p.currency ?? "USD",
+                      currency: p.currency ?? "$",
                       discount: p.discount
                         ? p.discount.type === "percent"
                           ? p.discount.value
@@ -396,15 +397,56 @@ export const Admin = () => {
                   {typeof p.price === "number" ? p.price.toFixed(2) : p.price}
                 </td>
                 <td>
+                  {p.final_price != null
+                    ? typeof p.final_price === "number"
+                      ? p.final_price.toFixed(2)
+                      : p.final_price
+                    : p.discount && p.discount.price_after != null
+                      ? Number(p.discount.price_after).toFixed(2)
+                      : typeof p.price === "number"
+                        ? p.price.toFixed(2)
+                        : p.price}
+                </td>
+                <td>
                   {(p.currency_symbol ?? currencySymbolFromCode(p.currency)) ||
                     "—"}
                 </td>
                 <td>
-                  {p.discount
-                    ? p.discount.type === "percent"
-                      ? `${p.discount.value}%`
-                      : `${p.discount.value} ${p.discount.currency}`
-                    : "—"}
+                  {(() => {
+                    const d =
+                      p.discount ??
+                      (Array.isArray(p.discounts) && p.discounts[0]) ??
+                      null;
+                    if (!d) return "—";
+                    // build readable label
+                    if (d.type === "percent") {
+                      return (
+                        <span title={JSON.stringify(d)}>
+                          {Number(d.value).toFixed(0)}%
+                        </span>
+                      );
+                    }
+                    if (d.type === "fixed") {
+                      return (
+                        <span title={JSON.stringify(d)}>
+                          {Number(d.value).toFixed(2)}{" "}
+                          {d.currency ?? p.currency ?? ""}
+                        </span>
+                      );
+                    }
+                    // fallback: if price_after present, show difference
+                    if (d.price_after != null && typeof p.price === "number") {
+                      const diff = Number(p.price) - Number(d.price_after);
+                      return (
+                        <span title={JSON.stringify(d)}>
+                          {diff > 0
+                            ? `-${diff.toFixed(2)} ${d.currency ?? p.currency ?? ""}`
+                            : "—"}
+                        </span>
+                      );
+                    }
+                    return <span title={JSON.stringify(d)}>raw</span>;
+                  })()}
                 </td>
                 <td>{p.weight ?? "—"}</td>
                 <td>{p.material ?? "—"}</td>
@@ -444,8 +486,10 @@ export const Admin = () => {
       if (createForm.material) formData.append("material", createForm.material);
       if (createForm.colours) formData.append("colours", createForm.colours);
       formData.append("is_popular", createForm.is_popular ? "1" : "0");
-      formData.append("currency", createForm.currency || "USD");
+      formData.append("currency", createForm.currency || "$");
       if (createForm.img) formData.append("img", createForm.img);
+      formData.append("discount", createForm.discount ?? "");
+      formData.append("discount_currency", createForm.currency ?? "$");
 
       const res = await fetch(`${API_BASE}/api/admin/products`, {
         method: "POST",
@@ -478,14 +522,18 @@ export const Admin = () => {
       const createdJson = await res.json().catch(() => null);
       const created = createdJson?.data ?? createdJson ?? null;
 
+      // create discount row if discount provided — prefer product_id when available
       if (createForm.discount && Number(createForm.discount) > 0) {
         try {
           const discountPayload = {
+            product_id: created?.id ?? null,
             sku: (created?.sku || createForm.sku || "").toString(),
             type: "percent",
             value: Number(createForm.discount),
-            currency: createForm.currency || "USD",
+            currency: createForm.currency || "$",
             active: true,
+            starts_at: null,
+            ends_at: null,
           };
           const dRes = await fetch(`${API_BASE}/api/admin/discounts`, {
             method: "POST",
@@ -541,9 +589,11 @@ export const Admin = () => {
       if (editForm.material) formData.append("material", editForm.material);
       if (editForm.colours) formData.append("colours", editForm.colours);
       formData.append("is_popular", editForm.is_popular ? "1" : "0");
-      formData.append("currency", editForm.currency || "USD");
+      formData.append("currency", editForm.currency || "$");
       // only append file if user selected a new one
       if (editForm.img instanceof File) formData.append("img", editForm.img);
+      formData.append("discount", editForm.discount ?? "");
+      formData.append("discount_currency", editForm.currency || "$");
 
       // Laravel expects PUT/PATCH — use _method override when sending multipart/form-data
       formData.append("_method", "PUT");
@@ -574,6 +624,44 @@ export const Admin = () => {
         return;
       }
 
+      // success — upsert/delete discount based on editForm.discount
+      try {
+        if (editForm.discount && Number(editForm.discount) > 0) {
+          // upsert: POST to discounts; backend should handle create or update by product_id
+          await fetch(`${API_BASE}/api/admin/discounts`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+              "X-XSRF-TOKEN": getXsrf(),
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              product_id: editForm.id,
+              type: "percent",
+              value: Number(editForm.discount),
+              currency: editForm.currency || "$",
+              active: true,
+            }),
+          });
+        } else {
+          // delete any discounts by product_id (backend should support this)
+          await fetch(
+            `${API_BASE}/api/admin/discounts?product_id=${editForm.id}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+              headers: {
+                "X-XSRF-TOKEN": getXsrf(),
+                Accept: "application/json",
+              },
+            },
+          );
+        }
+      } catch (err) {
+        console.warn("Discount upsert/delete failed", err);
+      }
+
       // success — refresh list and close drawer
       setShowDrawer(false);
       setEditMode(null);
@@ -586,7 +674,7 @@ export const Admin = () => {
     }
   };
 
-  const handleDelete = async () => {
+  async function handleDelete() {
     if (!editForm.id) return;
     if (!confirm("Удалить этот товар?")) return;
     setEditing(true);
@@ -612,7 +700,7 @@ export const Admin = () => {
     } finally {
       setEditing(false);
     }
-  };
+  }
 
   // Delete a review/comment by id (admin)
   async function handleDeleteReview(reviewId, productId) {
@@ -956,7 +1044,7 @@ export const Admin = () => {
                     : setCreateField("currency", e.target.value)
                 }
               >
-                <option value="USD">USD</option>
+                <option value="$">$</option>
                 <option value="RUB">RUB</option>
                 <option value="EUR">EUR</option>
               </select>

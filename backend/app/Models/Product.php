@@ -69,26 +69,77 @@ class Product extends Model
                     ->limit($limit);
     }
 
-    public function discounts()
-    {
-        return $this->hasMany(Discount::class, 'sku', 'sku');
-    }
+  // relation: all discounts for product (may be empty)
+public function discounts()
+{
+    return $this->hasMany(\App\Models\Discount::class, 'product_id');
+}
 
-    public function activeDiscount()
+// hasOne relation to currently active discount (by product_id)
+public function activeDiscount()
+{
+    return $this->hasOne(Discount::class, 'product_id')
+        ->where('active', true)
+        ->where(function ($q) {
+            $q->whereNull('starts_at')->orWhere('starts_at', '<=', now());
+        })
+        ->where(function ($q) {
+            $q->whereNull('ends_at')->orWhere('ends_at', '>=', now());
+        });
+}
+
+    // аксессор: final_price
+    public function getFinalPriceAttribute()
     {
-        if ($this->relationLoaded('discounts')) {
-            foreach ($this->discounts as $d) {
-                if ($d->isActive()) return $d;
-            }
-            return null;
+        // prefer eager-loaded relation if present
+        $discount = $this->relationLoaded('activeDiscount') ? $this->activeDiscount : $this->activeDiscount()->first();
+
+        if (! $discount) {
+            return (float) $this->price;
         }
 
-        return Discount::where('sku', $this->sku)
-                ->where('active', true)
-                ->where(function($q){ $now = now(); $q->whereNull('starts_at')->orWhere('starts_at','<=',$now); })
-                ->where(function($q){ $now = now(); $q->whereNull('ends_at')->orWhere('ends_at','>=',$now); })
-                ->orderByDesc('id')->first();
+        $after = $discount->priceAfter($this->price);
+        return $after === null ? (float) $this->price : $after;
     }
+
+    // optionally: expose discount percent computed
+    public function getDiscountPercentAttribute()
+    {
+        $discount = $this->relationLoaded('activeDiscount') ? $this->activeDiscount : $this->activeDiscount()->first();
+        if (! $discount) return null;
+        if ($discount->type === 'percent') {
+            return (float) $discount->value;
+        }
+        if ($discount->type === 'fixed' && $this->price > 0) {
+            return round(((float)$this->price - max(0, (float)$this->price - (float)$discount->value)) / (float)$this->price * 100, 2);
+        }
+        return null;
+    }
+
+// helper that returns Discount model or null
+public function getActiveDiscountObject()
+{
+    // If discounts collection was eager-loaded, prefer scanning it
+    if ($this->relationLoaded('discounts')) {
+        $found = collect($this->discounts)->first(function ($d) {
+            if (! $d) return false;
+            if (method_exists($d, 'isActive')) return $d->isActive();
+            $active = (bool) ($d->active ?? false);
+            $startsOk = empty($d->starts_at) || now()->gte($d->starts_at);
+            $endsOk = empty($d->ends_at) || now()->lte($d->ends_at);
+            return $active && $startsOk && $endsOk;
+        });
+        if ($found) return $found;
+    }
+
+    // fallback to relation query (safe)
+    try {
+        return $this->activeDiscount()->first();
+    } catch (\Throwable $e) {
+        \Log::warning('getActiveDiscountObject error: '.$e->getMessage());
+        return null;
+    }
+}
 
     /**
      * Связь с категорией.

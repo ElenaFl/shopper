@@ -108,8 +108,95 @@ export const ProductDetails = () => {
 
     const description = p.description ?? p.short_description ?? "";
 
+    // IMPORTANT: do not compute final_price or discount here — server is authoritative.
     return { ...p, colours, weight, description };
   };
+
+  // Use Intl.NumberFormat when possible
+  function formatMoney(val, currencyLabel) {
+    if (val == null) return "";
+    const n = Number(val);
+    if (!Number.isFinite(n)) return String(val);
+    // If currency looks like an ISO code (3 letters), prefer Intl currency formatting
+    if (
+      currencyLabel &&
+      typeof currencyLabel === "string" &&
+      currencyLabel.length === 3
+    ) {
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: currencyLabel,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(n);
+      } catch (e) {
+        // fallback to numeric format
+      }
+    }
+    return n.toFixed(2) + (currencyLabel ? " " + currencyLabel : "");
+  }
+
+  // Simplified price display: trust server final_price first, then discount.price_after, then local fallback (display only)
+  function getPriceDisplay(product) {
+    const price = Number(product?.price ?? 0);
+    const serverFinal =
+      product?.final_price != null ? Number(product.final_price) : null;
+
+    // discount object from server (or null)
+    const discount = product?.discount ?? null;
+
+    // determine priceAfter to use for UI:
+    let priceAfter = null;
+    if (serverFinal != null && Number.isFinite(serverFinal)) {
+      priceAfter = serverFinal;
+    } else if (
+      discount &&
+      discount.price_after != null &&
+      Number.isFinite(Number(discount.price_after))
+    ) {
+      priceAfter = Number(discount.price_after);
+    } else if (
+      discount &&
+      discount.type === "percent" &&
+      discount.value != null &&
+      !Number.isNaN(Number(discount.value))
+    ) {
+      // non-authoritative client-side computation only for display
+      const pct = Number(discount.value) / 100;
+      priceAfter = Math.max(0, Number((price * (1 - pct)).toFixed(2)));
+    } else if (
+      discount &&
+      discount.type === "fixed" &&
+      discount.value != null &&
+      !Number.isNaN(Number(discount.value))
+    ) {
+      priceAfter = Math.max(
+        0,
+        Number((price - Number(discount.value)).toFixed(2)),
+      );
+    } else {
+      priceAfter = price;
+    }
+
+    const hasDiscount = Number(price) > Number(priceAfter);
+
+    // displayPercent: prefer server-provided percent value if present
+    let displayPercent = null;
+    if (discount && discount.type === "percent" && discount.value != null) {
+      displayPercent = `-${Math.round(Number(discount.value))}%`;
+    } else if (hasDiscount && price > 0) {
+      displayPercent = `-${Math.round(((price - priceAfter) / price) * 100)}%`;
+    }
+
+    return {
+      original: price,
+      final: priceAfter,
+      hasDiscount,
+      displayPercent,
+      discount,
+    };
+  }
 
   // helper: fetch similar by category id
   const fetchSimilar = async (categoryId, signal = null) => {
@@ -189,6 +276,7 @@ export const ProductDetails = () => {
       const payload = json && json.data ? json.data : json;
       const normalized = normalizeProduct(payload);
 
+      // preserve server-provided final_price and discount; do not override
       if (
         !normalized.category_id &&
         payload &&
@@ -203,6 +291,14 @@ export const ProductDetails = () => {
           normalized.category = normalized.category || {};
           normalized.category.title = payload.category.title;
         }
+      }
+
+      // Attach server fields as-is (final_price, discount)
+      if (payload && payload.final_price != null) {
+        normalized.final_price = payload.final_price;
+      }
+      if (payload && payload.discount != null) {
+        normalized.discount = payload.discount;
       }
 
       setProduct(normalized);
@@ -421,11 +517,6 @@ export const ProductDetails = () => {
       const raw = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "";
       const xsrf = raw ? decodeURIComponent(raw) : "";
 
-      console.log("DEBUG submitReview: sending request", {
-        productId,
-        reviewRating,
-      });
-
       const res = await fetch(`${API_BASE}/api/products/${productId}/reviews`, {
         method: "POST",
         credentials: "include",
@@ -443,8 +534,6 @@ export const ProductDetails = () => {
         }),
       });
 
-      console.log("DEBUG submitReview: response status", res.status);
-
       if (!res.ok) {
         if (res.status === 401) {
           await fetchUser?.();
@@ -455,7 +544,6 @@ export const ProductDetails = () => {
       }
 
       const json = await res.json().catch(() => null);
-      console.log("DEBUG submitReview: response json", json);
 
       let normalized = null;
       let createdId = null;
@@ -514,24 +602,13 @@ export const ProductDetails = () => {
         }));
       }
 
-      console.log("DEBUG submitReview: computed createdId =", createdId);
-
-      if (createdId) {
-        const ratingNum = Number(reviewRating || 0);
-        if (ratingNum === 5) {
-          setRecentlyCreatedReviewId(createdId);
-          console.log(
-            "DEBUG submitReview: setRecentlyCreatedReviewId",
-            createdId,
-          );
-        } else {
-          // set transient id (string) to keep flow consistent
-          setRecentlyCreatedReviewId(createdId);
-          console.log(
-            "DEBUG submitReview: setRecentlyCreatedReviewId (non-5)",
-            createdId,
-          );
-        }
+      // Set recentlyCreatedReviewId ONLY for 5★ reviews
+      if (createdId && Number(reviewRating || 0) === 5) {
+        setRecentlyCreatedReviewId(String(createdId));
+        console.log(
+          "DEBUG submitReview: setRecentlyCreatedReviewId (5★)",
+          createdId,
+        );
       }
 
       // refresh similar after review submit
@@ -553,6 +630,8 @@ export const ProductDetails = () => {
       setSubmittingReview(false);
     }
   };
+
+  const priceInfo = getPriceDisplay(product);
 
   return (
     <div className="mt-60 mb-62">
@@ -643,10 +722,32 @@ export const ProductDetails = () => {
             <h3 className="text-2xl mb-6">{product.title}</h3>
 
             <p className="text-xl text-medium mb-16">
-              {product.currency}{" "}
-              {typeof product.price === "number"
-                ? product.price.toFixed(2)
-                : product.price}
+              {priceInfo.hasDiscount ? (
+                <>
+                  {" "}
+                  <span className="text-[#A0A0A0] line-through mr-2">
+                    {" "}
+                    {formatMoney(priceInfo.original, product.currency)}{" "}
+                  </span>{" "}
+                  <span className="text-black font-semibold">
+                    {" "}
+                    <span style={{ color: "red", fontWeight: 700 }}>
+                      {formatMoney(priceInfo.final, product.currency)}{" "}
+                    </span>
+                  </span>{" "}
+                  {priceInfo.displayPercent && (
+                    <span className="ml-3 text-green-700 text-[#A18A68]">
+                      {" "}
+                      {priceInfo.displayPercent}{" "}
+                    </span>
+                  )}{" "}
+                </>
+              ) : (
+                <span className="text-black font-semibold">
+                  {" "}
+                  {formatMoney(priceInfo.final, product.currency)}{" "}
+                </span>
+              )}
             </p>
 
             <div className="flex items-center gap-x-3 mb-4">
@@ -805,11 +906,11 @@ export const ProductDetails = () => {
                     return (
                       <div
                         key={r.id}
-                        className={`w-full pb-4 border-b border-[#E5E7EB] ${String(r.id) === String(latestReviewId) ? "highlight-pulse" : ""}`}
+                        className="w-full pb-4 border-b border-[#E5E7EB]"
                       >
                         {/* Optional gold sparkle element / class for one-time highlight */}
                         {isGold && (
-                          <div className="gold-sparkle" aria-hidden="true" />
+                          <div className="highlight-pulse" aria-hidden="true" />
                         )}
 
                         <div className="star-layer" aria-hidden="true" />
@@ -838,6 +939,12 @@ export const ProductDetails = () => {
                           </div>
                         </div>
                         <p className="text-[#707070]">{r.comment}</p>
+                        {isGold && (
+                          <div
+                            className="highlight-pulse highlight-pulse--bottom"
+                            aria-hidden="true"
+                          />
+                        )}
                       </div>
                     );
                   })}

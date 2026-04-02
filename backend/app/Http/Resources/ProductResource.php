@@ -16,38 +16,38 @@ class ProductResource extends JsonResource
         $raw = trim((string) $raw);
 
         // full URL
-if (preg_match('#^https?://#i', $raw)) {
-    return [null, $raw];
-}
+        if (preg_match('#^https?://#i', $raw)) {
+            return [null, $raw];
+        }
 
-// already an images path (public/images/...)
-if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
-    $clean = ltrim($raw, '/');
-    return [$clean, url($clean)];
-}
+        // already an images path (public/images/...)
+        if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
+            $clean = ltrim($raw, '/');
+            return [$clean, url($clean)];
+        }
 
-// normalize potential storage or public-relative paths
-$clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
-$rel = trim($clean, '/');
+        // normalize potential storage or public-relative paths
+        $clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
+        $rel = trim($clean, '/');
 
-if (! $rel) {
-    return [null, null];
-}
+        if (! $rel) {
+            return [null, null];
+        }
 
-// 1) if file exists under public/<rel>, prefer that
-if (file_exists(public_path($rel))) {
-    return [$rel, url($rel)];
-}
+        // 1) if file exists under public/<rel>, prefer that
+        if (file_exists(public_path($rel))) {
+            return [$rel, url($rel)];
+        }
 
-// 2) if file exists under public/images/<rel>, prefer that
-$inImages = 'images/' . ltrim($rel, '/');
-if (file_exists(public_path($inImages))) {
-    return [$inImages, url($inImages)];
-}
+        // 2) if file exists under public/images/<rel>, prefer that
+        $inImages = 'images/' . ltrim($rel, '/');
+        if (file_exists(public_path($inImages))) {
+            return [$inImages, url($inImages)];
+        }
 
-// 3) fallback to storage URL (public/storage/<rel>)
-return [$rel, url('/storage/' . $rel)];
-}
+        // 3) fallback to storage URL (public/storage/<rel>)
+        return [$rel, url('/storage/' . $rel)];
+    }
 
     public function toArray($request)
     {
@@ -57,34 +57,58 @@ return [$rel, url('/storage/' . $rel)];
         $currencyMap = ['USD' => '$', 'RUB' => '₽', 'EUR' => '€', 'GBP' => '£'];
         $currencySymbol = $this->currency ? ($currencyMap[strtoupper($this->currency)] ?? $this->currency) : null;
 
-         // --- active discount (nullable) ---
+        // --- active discount (nullable) ---
+        // try to get discount object consistently
         $activeDiscount = null;
-        if (method_exists($this, 'activeDiscount')) {
-            $activeDiscount = $this->activeDiscount();
+
+        // prefer helper if exists
+        if (method_exists($this->resource, 'getActiveDiscountObject')) {
+            $activeDiscount = $this->resource->getActiveDiscountObject();
+        } elseif ($this->relationLoaded('activeDiscount')) {
+            $activeDiscount = $this->activeDiscount;
         } elseif ($this->relationLoaded('discounts')) {
             $activeDiscount = collect($this->discounts)->first(fn($d) => method_exists($d, 'isActive') ? $d->isActive() : ($d->active ?? false));
+        } else {
+            try {
+                $activeDiscount = $this->activeDiscount()->first();
+            } catch (\Throwable $e) {
+                $activeDiscount = null;
+            }
         }
 
-        $discount = null;
+        $discountPayload = null;
+        $priceAfter = null;
+
         if ($activeDiscount) {
-            $discount = [
+            $priceAfter = method_exists($activeDiscount, 'priceAfter') ? $activeDiscount->priceAfter($this->price) : ($activeDiscount->price_after ?? null);
+
+            $discountPayload = [
+                'id' => $activeDiscount->id ?? null,
                 'type' => $activeDiscount->type ?? null,
-                'value' => $activeDiscount->value ?? null,
+                'value' => isset($activeDiscount->value) ? (float)$activeDiscount->value : null,
                 'currency' => $activeDiscount->currency ?? $this->currency ?? null,
-                'price_after' => method_exists($activeDiscount, 'priceAfter')
-                    ? $activeDiscount->priceAfter($this->price)
-                    : (isset($activeDiscount->price_after) ? $activeDiscount->price_after : null),
+                'starts_at' => $activeDiscount->starts_at ? $activeDiscount->starts_at->toISOString() : null,
+                'ends_at' => $activeDiscount->ends_at ? $activeDiscount->ends_at->toISOString() : null,
+                'active' => (bool) ($activeDiscount->active ?? true),
+                'price_after' => $priceAfter !== null ? (float) $priceAfter : null,
             ];
+        }
+
+        // final_price prefer accessor, fallback to price_after
+        $finalPrice = $this->resource->final_price ?? null;
+        if ($finalPrice === null && $priceAfter !== null) {
+            $finalPrice = (float)$priceAfter;
         }
 
         return [
             'id' => $this->id,
             'title' => $this->title,
             'sku' => $this->sku,
-            'price' => $this->price !== null ? number_format((float)$this->price, 2, '.', '') : null,
+            'price' => $this->price !== null ? (float) $this->price : null,
             'currency' => $this->currency,
             'currency_symbol' => $currencySymbol,
-            'discount' => $discount,
+            'discount' => $discountPayload,
+            'final_price' => $finalPrice,
             'description' => $this->description,
             'img' => $imgPath,
             'img_url' => $imgUrl,

@@ -10,33 +10,27 @@ use App\Http\Resources\AdminProductResource;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Intervention\Image\Facades\Image;
+use App\Http\Resources\ProductResource;
+use App\Models\Discount;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
-    {
-        $perPage = (int) $request->query('per_page', 24);
-        $query = Product::query()->with('category');
+{
+    // build base query (existing logic may include filters)
+    $query = Product::query();
 
-        if ($categoryId = $request->query('category_id')) {
-            $query->where('category_id', $categoryId);
-        }
+    // (apply any existing admin filters/pagination here)
+    $perPage = $request->query('per_page', 15);
+    $page = $request->query('page', 1);
 
-        if ($search = (string) $request->query('search', '')) {
-            $s = trim(mb_substr($search, 0, 200));
-            $query->where(function ($q) use ($s) {
-                $q->where('title', 'like', "%{$s}%")
-                    ->orWhere('description', 'like', "%{$s}%");
-            });
-        }
+    // eager-load discounts so resource can use them without extra queries
+    $query->with(['category', 'discounts']);
 
-        if ($perPage > 0) {
-            $paginator = $query->paginate($perPage);
-            return AdminProductResource::collection($paginator);
-        }
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-        return AdminProductResource::collection($query->get());
-    }
+    return ProductResource::collection($paginator);
+}
 
     public function store(Request $request)
     {
@@ -87,16 +81,42 @@ class ProductController extends Controller
 
         $product = Product::create($data);
 
+        // handle discount (optional)
+try {
+    $discountValue = $request->input('discount'); // could be null or string/number
+    $discountCurrency = $request->input('discount_currency') ?? $request->input('currency') ?? null;
+    if ($discountValue !== null && $discountValue !== '' && is_numeric($discountValue) && floatval($discountValue) > 0) {
+        // create discount as percent
+        Discount::create([
+            'product_id' => $product->id,
+            'sku' => $product->sku ?? $request->input('sku'),
+            'type' => 'percent',
+            'value' => number_format((float)$discountValue, 2, '.', ''), // store as decimal
+            'currency' => $discountCurrency,
+            'active' => true,
+            'starts_at' => $request->input('discount_starts_at') ?? null,
+            'ends_at' => $request->input('discount_ends_at') ?? null,
+            'note' => $request->input('discount_note') ?? null,
+        ]);
+    }
+} catch (\Throwable $e) {
+    \Log::warning('Discount create during product store failed: '.$e->getMessage());
+    // don't fail product creation on discount error; optionally return warning in response
+}
+
+
+
         return (new AdminProductResource($product->load('category')))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(Product $product)
-    {
-        $product->loadMissing('category');
-        return new AdminProductResource($product);
-    }
+{
+    // load relations including discounts
+    $product->load(['reviews.user', 'category', 'discounts']);
+    return new ProductResource($product);
+}
 
     public function update(Request $request, Product $product)
     {
@@ -182,6 +202,34 @@ class ProductController extends Controller
     }
 
     $product->update($data);
+
+    // handle discount upsert/delete
+try {
+    $discountValue = $request->input('discount'); // may be null/empty to remove
+    $discountCurrency = $request->input('discount_currency') ?? $request->input('currency') ?? null;
+
+    if ($discountValue !== null && $discountValue !== '' && is_numeric($discountValue) && floatval($discountValue) > 0) {
+        // upsert percent discount by product_id
+        Discount::updateOrCreate(
+            ['product_id' => $product->id],
+            [
+                'sku' => $product->sku ?? $request->input('sku'),
+                'type' => 'percent',
+                'value' => number_format((float)$discountValue, 2, '.', ''),
+                'currency' => $discountCurrency,
+                'active' => true,
+                'starts_at' => $request->input('discount_starts_at') ?? null,
+                'ends_at' => $request->input('discount_ends_at') ?? null,
+                'note' => $request->input('discount_note') ?? null,
+            ]
+        );
+    } else {
+        // remove discounts for this product (if any)
+        Discount::where('product_id', $product->id)->delete();
+    }
+} catch (\Throwable $e) {
+    \Log::warning('Discount upsert during product update failed: '.$e->getMessage());
+}
 
     return new AdminProductResource($product->load('category'));
 }
