@@ -65,6 +65,31 @@ export const ProductDetails = () => {
 
   const canSubmit = Boolean(reviewComment && reviewRating && !submittingReview);
 
+  // One-time highlight storage (persisted so it won't re-highlight)
+  const HIGHLIGHTED_REVIEWS_KEY = "highlighted_reviews_v1";
+  const [highlightedReviews, setHighlightedReviews] = useState(() => {
+    try {
+      const raw = localStorage.getItem(HIGHLIGHTED_REVIEWS_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // transient id of review that was just created — used to show sparkle once
+  const [recentlyCreatedReviewId, setRecentlyCreatedReviewId] = useState(null);
+
+  function persistHighlightedReviews(setObj) {
+    try {
+      localStorage.setItem(
+        HIGHLIGHTED_REVIEWS_KEY,
+        JSON.stringify(Array.from(setObj)),
+      );
+    } catch (e) {
+      // ignore storage errors
+    }
+  }
+
   const normalizeProduct = (p = {}) => {
     const colours = Array.isArray(p.colours)
       ? p.colours
@@ -220,6 +245,7 @@ export const ProductDetails = () => {
     const controller = new AbortController();
     loadProduct(controller.signal);
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE, productId]);
 
   useEffect(() => {
@@ -233,6 +259,7 @@ export const ProductDetails = () => {
       fetchSimilar(product.category_id, controller.signal);
     }
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.category_id]);
 
   useEffect(() => {
@@ -240,6 +267,7 @@ export const ProductDetails = () => {
     const controller = new AbortController();
     fetchAllForSlider(controller.signal).catch(() => {});
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE]);
 
   useEffect(() => {
@@ -260,7 +288,42 @@ export const ProductDetails = () => {
       setReviewEmail(user.email ?? "");
       setNeedLoginMessage("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // After a new review is created and recentlyCreatedReviewId is set,
+  // persist it to highlighted set after a short delay so the UI shows sparkle once.
+  useEffect(() => {
+    if (!recentlyCreatedReviewId) return;
+    const t = setTimeout(() => {
+      setHighlightedReviews((prev) => {
+        const next = new Set(prev);
+        next.add(String(recentlyCreatedReviewId));
+        persistHighlightedReviews(next);
+        return next;
+      });
+      setRecentlyCreatedReviewId(null);
+    }, 1600); // a bit shorter than CSS animation to ensure user sees it
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentlyCreatedReviewId]);
+
+  useEffect(() => {
+    // keep highlightedReviews synced to localStorage if it changes elsewhere
+    try {
+      persistHighlightedReviews(highlightedReviews);
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightedReviews]);
+
+  useEffect(() => {
+    // cleanup: when productId changes (navigate to other product), we reset recentlyCreatedReviewId
+    return () => {
+      setRecentlyCreatedReviewId(null);
+    };
+  }, [productId]);
 
   const handleCounterChange = (newCount) => {
     const q = Number(newCount) || 0;
@@ -341,12 +404,14 @@ export const ProductDetails = () => {
 
   const submitReview = async (e) => {
     e.preventDefault();
+
     if (!user) {
       setNeedLoginMessage("Please login to submit a review");
       return;
     }
     setSubmittingReview(true);
     setReviewError(null);
+
     try {
       await getCsrf?.();
       await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
@@ -355,6 +420,11 @@ export const ProductDetails = () => {
 
       const raw = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "";
       const xsrf = raw ? decodeURIComponent(raw) : "";
+
+      console.log("DEBUG submitReview: sending request", {
+        productId,
+        reviewRating,
+      });
 
       const res = await fetch(`${API_BASE}/api/products/${productId}/reviews`, {
         method: "POST",
@@ -373,6 +443,8 @@ export const ProductDetails = () => {
         }),
       });
 
+      console.log("DEBUG submitReview: response status", res.status);
+
       if (!res.ok) {
         if (res.status === 401) {
           await fetchUser?.();
@@ -383,8 +455,10 @@ export const ProductDetails = () => {
       }
 
       const json = await res.json().catch(() => null);
+      console.log("DEBUG submitReview: response json", json);
 
       let normalized = null;
+      let createdId = null;
 
       if (json) {
         if (json.product) {
@@ -400,7 +474,21 @@ export const ProductDetails = () => {
             product?.reviews_count ??
             0;
           setProduct(normalized);
+
+          if (
+            Array.isArray(json.product.reviews) &&
+            json.product.reviews.length
+          ) {
+            const prevIds = new Set(
+              (product?.reviews ?? []).map((x) => String(x.id)),
+            );
+            const found = json.product.reviews.find(
+              (rv) => !prevIds.has(String(rv.id)),
+            );
+            createdId = String(found?.id ?? json.product.reviews[0]?.id ?? "");
+          }
         } else if (json.review) {
+          createdId = String(json.review.id ?? "");
           setProduct((prev) => {
             const prevReviews = Array.isArray(prev?.reviews)
               ? prev.reviews.slice()
@@ -426,6 +514,26 @@ export const ProductDetails = () => {
         }));
       }
 
+      console.log("DEBUG submitReview: computed createdId =", createdId);
+
+      if (createdId) {
+        const ratingNum = Number(reviewRating || 0);
+        if (ratingNum === 5) {
+          setRecentlyCreatedReviewId(createdId);
+          console.log(
+            "DEBUG submitReview: setRecentlyCreatedReviewId",
+            createdId,
+          );
+        } else {
+          // set transient id (string) to keep flow consistent
+          setRecentlyCreatedReviewId(createdId);
+          console.log(
+            "DEBUG submitReview: setRecentlyCreatedReviewId (non-5)",
+            createdId,
+          );
+        }
+      }
+
       // refresh similar after review submit
       try {
         const catId = normalized?.category_id ?? product?.category_id;
@@ -440,6 +548,7 @@ export const ProductDetails = () => {
       setReviewRating(5);
     } catch (err) {
       setReviewError(err.message || "Error");
+      console.error("submitReview error", err);
     } finally {
       setSubmittingReview(false);
     }
@@ -682,39 +791,56 @@ export const ProductDetails = () => {
                   {(showAllReviews
                     ? product.reviews.slice().reverse()
                     : product.reviews.slice(-5).reverse()
-                  ).map((r) => (
-                    <div
-                      key={r.id}
-                      className={`w-full pb-4 border-b border-[#E5E7EB] ${r.id === latestReviewId ? "highlight-pulse" : ""}`}
-                    >
-                      <div className="star-layer" aria-hidden="true" />
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-x-3">
-                          <strong className="text-lg">
-                            {r.name ?? r.user?.name ?? "User"}
-                          </strong>
-                          <div className="text-sm text-[#707070]">
-                            {new Date(r.created_at).toLocaleDateString()}
+                  ).map((r) => {
+                    // compute one-time gold highlight:
+                    const isFiveStar = Number(r.rating || 0) === 5;
+                    const isAlreadyHighlighted = highlightedReviews.has(
+                      String(r.id),
+                    );
+                    const isGold =
+                      isFiveStar &&
+                      !isAlreadyHighlighted &&
+                      String(r.id) === String(recentlyCreatedReviewId);
+
+                    return (
+                      <div
+                        key={r.id}
+                        className={`w-full pb-4 border-b border-[#E5E7EB] ${String(r.id) === String(latestReviewId) ? "highlight-pulse" : ""}`}
+                      >
+                        {/* Optional gold sparkle element / class for one-time highlight */}
+                        {isGold && (
+                          <div className="gold-sparkle" aria-hidden="true" />
+                        )}
+
+                        <div className="star-layer" aria-hidden="true" />
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-x-3">
+                            <strong className="text-lg">
+                              {r.name ?? r.user?.name ?? "User"}
+                            </strong>
+                            <div className="text-sm text-[#707070]">
+                              {new Date(r.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="flex items-center">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <img
+                                key={n}
+                                src={
+                                  n <= (r.rating || 0)
+                                    ? "/images/star-filled.svg"
+                                    : "/images/star.svg"
+                                }
+                                alt="star"
+                                className="w-4 h-4 mr-1"
+                              />
+                            ))}
                           </div>
                         </div>
-                        <div className="flex items-center">
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <img
-                              key={n}
-                              src={
-                                n <= (r.rating || 0)
-                                  ? "/images/star-filled.svg"
-                                  : "/images/star.svg"
-                              }
-                              alt="star"
-                              className="w-4 h-4 mr-1"
-                            />
-                          ))}
-                        </div>
+                        <p className="text-[#707070]">{r.comment}</p>
                       </div>
-                      <p className="text-[#707070]">{r.comment}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {product.reviews.length > 5 && (
                     <div className="mt-4">
                       <button

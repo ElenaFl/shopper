@@ -476,7 +476,7 @@ export const BlogDetails = () => {
               </div>
 
               <div className="flex items-center gap-x-2">
-                {!isDeleted && !c.parent_id && (
+                {!isDeleted && !c.parent_id && user && (
                   <button
                     onClick={() => setReplyFor(c.id)}
                     className="text-sm text-blue-600"
