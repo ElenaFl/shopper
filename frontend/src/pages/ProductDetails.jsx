@@ -46,6 +46,7 @@ export const ProductDetails = () => {
 
   const [showAllReviews, setShowAllReviews] = useState(false);
 
+  // derive from cart
   const existing = cart.find((i) => Number(i.id) === productId);
   const derivedCount = existing ? Number(existing.quantity) : 1;
   const [local, setLocal] = useState(() => ({
@@ -277,23 +278,6 @@ export const ProductDetails = () => {
       const normalized = normalizeProduct(payload);
 
       // preserve server-provided final_price and discount; do not override
-      if (
-        !normalized.category_id &&
-        payload &&
-        payload.category &&
-        payload.category.id
-      ) {
-        normalized.category_id = payload.category.id;
-      }
-
-      if (!normalized.category || !normalized.category.title) {
-        if (payload && payload.category && payload.category.title) {
-          normalized.category = normalized.category || {};
-          normalized.category.title = payload.category.title;
-        }
-      }
-
-      // Attach server fields as-is (final_price, discount)
       if (payload && payload.final_price != null) {
         normalized.final_price = payload.final_price;
       }
@@ -310,14 +294,10 @@ export const ProductDetails = () => {
         setCategoryTitle(normalized.category.title);
       else if (payload && payload.category_id) setCategoryTitle("");
 
-      // ensure slider items are available (fetch all products for slider)
       try {
         fetchAllForSlider().catch(() => {});
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
 
-      // immediately fetch similar for category (fire-and-forget)
       try {
         const catId =
           normalized?.category_id ??
@@ -326,9 +306,7 @@ export const ProductDetails = () => {
         if (catId) {
           fetchSimilar(catId).catch(() => {});
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     } catch (err) {
       if (err.name === "AbortError") return;
       setProductError("Failed to load product (network error)");
@@ -387,8 +365,6 @@ export const ProductDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // After a new review is created and recentlyCreatedReviewId is set,
-  // persist it to highlighted set after a short delay so the UI shows sparkle once.
   useEffect(() => {
     if (!recentlyCreatedReviewId) return;
     const t = setTimeout(() => {
@@ -405,7 +381,6 @@ export const ProductDetails = () => {
   }, [recentlyCreatedReviewId]);
 
   useEffect(() => {
-    // keep highlightedReviews synced to localStorage if it changes elsewhere
     try {
       persistHighlightedReviews(highlightedReviews);
     } catch {
@@ -421,30 +396,57 @@ export const ProductDetails = () => {
     };
   }, [productId]);
 
-  const handleCounterChange = (newCount) => {
-    const q = Number(newCount) || 0;
-    setLocal((prev) => ({ ...prev, count: q }));
-    if (q <= 0) {
+  // -----------------------
+  // NEW: processing state for add/update button
+  // -----------------------
+  const [isProcessingAdd, setIsProcessingAdd] = useState(false);
+
+  const handleCounterChange = (arg) => {
+    // support both signature: onChange(newCount) or onChange(updater)
+    let newCount;
+    if (typeof arg === "function") {
+      newCount = arg(local.count);
+    } else {
+      newCount = Number(arg) || 0;
+    }
+    setLocal((prev) => ({ ...prev, count: newCount }));
+    if (newCount <= 0) {
       updateQuantity(productId, 0);
       setLocal((prev) => ({ ...prev, isAdded: false }));
     }
   };
 
-  const handleAddToCart = () => {
-    const inCart = cart.find((i) => Number(i.id) === productId);
-    if (inCart) {
-      setLocal((prev) => ({ ...prev, isAdded: true }));
-      return;
-    }
-    const qty = Number(local.count) > 0 ? Number(local.count) : 1;
+  const handleAddOrUpdate = async () => {
     if (!product) return;
-    addToCart({ ...product, quantity: qty });
-    setLocal((prev) => ({ ...prev, isAdded: true }));
+    const qty = Number(local.count) > 0 ? Number(local.count) : 1;
+    setIsProcessingAdd(true);
+    try {
+      if (local.isAdded) {
+        // update existing quantity
+        await updateQuantity(productId, qty);
+      } else {
+        // add new item with final price
+        const itemPrice = Number(priceInfo?.final ?? product.price ?? 0);
+        await addToCart({
+          id: Number(product.id ?? product.product_id),
+          title: product.title ?? product.name ?? "",
+          price: itemPrice,
+          img: product.img ?? product.img_url ?? null,
+          quantity: qty,
+          sku: product.sku ?? product.SKU ?? null,
+        });
+        setLocal((prev) => ({ ...prev, isAdded: true }));
+      }
+    } catch (e) {
+      console.error("add/update cart error", e);
+    } finally {
+      setIsProcessingAdd(false);
+    }
   };
 
-  const addButtonClass = local.isAdded
-    ? "w-90 h-13 font-semibold border rounded-sm cursor-not-allowed flex justify-center items-center text-center bg-white text-[#D8D8D8]"
-    : "w-90 h-13 font-semibold border rounded-sm cursor-pointer flex justify-center items-center text-center bg-black text-white hover:bg-black hover:text-white";
+  const addButtonClassBase =
+    "w-90 h-13 font-semibold border rounded-sm flex justify-center items-center text-center";
+  const addButtonClass = `${addButtonClassBase} bg-black text-white hover:bg-black hover:text-white`;
 
   const counterWrapperClass = "w-26 h-13 bg-white";
 
@@ -779,12 +781,16 @@ export const ProductDetails = () => {
               >
                 <Counter count={local.count} onChange={handleCounterChange} />
               </div>
+
               <button
-                onClick={handleAddToCart}
-                className={addButtonClass}
-                disabled={local.isAdded}
+                onClick={handleAddOrUpdate}
+                disabled={isProcessingAdd}
+                className={
+                  addButtonClass +
+                  (isProcessingAdd ? " opacity-50 cursor-not-allowed" : "")
+                }
               >
-                ADD TO CART
+                {isProcessingAdd ? "Processing..." : "TO CART"}
               </button>
             </div>
 
@@ -893,7 +899,6 @@ export const ProductDetails = () => {
                     ? product.reviews.slice().reverse()
                     : product.reviews.slice(-5).reverse()
                   ).map((r) => {
-                    // compute one-time gold highlight:
                     const isFiveStar = Number(r.rating || 0) === 5;
                     const isAlreadyHighlighted = highlightedReviews.has(
                       String(r.id),
@@ -908,11 +913,9 @@ export const ProductDetails = () => {
                         key={r.id}
                         className="w-full pb-4 border-b border-[#E5E7EB]"
                       >
-                        {/* Optional gold sparkle element / class for one-time highlight */}
                         {isGold && (
                           <div className="highlight-pulse" aria-hidden="true" />
                         )}
-
                         <div className="star-layer" aria-hidden="true" />
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-x-3">
@@ -1046,9 +1049,11 @@ export const ProductDetails = () => {
                       </button>
                     ))}
                   </div>
+
                   {reviewError && (
                     <div className="text-red-500 mb-2">{reviewError}</div>
                   )}
+
                   <div className="w-[22%]">
                     <button
                       type="submit"
