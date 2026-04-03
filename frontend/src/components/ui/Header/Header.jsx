@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useContext } from "react";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/auth/useAuth.js";
 import { useSaved } from "../../../context/save/useSaved.js";
+import { CartContext } from "../../../context/cart/CartContext.jsx";
 
 export const Header = () => {
   const location = useLocation();
@@ -9,7 +10,13 @@ export const Header = () => {
   const { user, checking } = useAuth();
   const navigate = useNavigate();
 
-  const { open, setOpen, count } = useSaved();
+  const { open, setOpen, count: savedCount } = useSaved();
+
+  // get cart from context and compute total quantity
+  const { cart } = useContext(CartContext);
+  const cartQty = Array.isArray(cart)
+    ? cart.reduce((s, p) => s + (Number(p.quantity) || 0), 0)
+    : 0;
 
   const isHome = location.pathname === "/" || location.pathname === "";
 
@@ -64,9 +71,9 @@ export const Header = () => {
               </svg>
             </Link>
             {!checking && user ? (
-              <div className="h-7 w-70 ml-4 bg-red hidden md:flex items-center">
+              <div className="h-7 w-70 ml-4 hidden md:flex items-center">
                 <span
-                  className="text-[#A18A68] h-7 w-70 ml-4 bg-red italic font-serif text-2xl font-light transition-opacity duration-300 opacity-100"
+                  className="text-[#A18A68] italic font-serif text-2xl font-light transition-opacity duration-300 opacity-100"
                   aria-live="polite"
                 >
                   <span className="mr-1">Welcome,</span>{" "}
@@ -74,7 +81,7 @@ export const Header = () => {
                 </span>
               </div>
             ) : (
-              <div className="h-7 w-70 ml-4 bg-red ml-4 hidden md:flex items-center" />
+              <div className="h-7 w-70 ml-4 hidden md:flex items-center" />
             )}
 
             <div className="w-1/2 flex justify-between items-center">
@@ -86,21 +93,6 @@ export const Header = () => {
               </nav>
 
               <span className="text-grey-500">|</span>
-
-              {/* <button
-                type="button"
-                onClick={() => setOpen((s) => !s)}
-                className="w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
-                aria-label="Saved items"
-                aria-expanded={open}
-              >
-                <img
-                  className="w-full h-full object-cover"
-                  src="/images/heart.svg"
-                  alt="saved"
-                />
-                {count > 0 && <span className="badge">{count}</span>}
-              </button> */}
 
               <button
                 type="button"
@@ -114,22 +106,29 @@ export const Header = () => {
                   src="/images/heart.svg"
                   alt="saved"
                 />
-                {count > 0 && (
+                {savedCount > 0 && (
                   <span
                     className="absolute -top-2 -right-2 flex items-center justify-center text-sm font-semibold text-gray-500 bg-gray-200 rounded-full w-4 h-4 shadow-sm"
                     aria-hidden="true"
                   >
-                    {" "}
-                    {count > 99 ? "99+" : count}{" "}
+                    {savedCount > 99 ? "99+" : savedCount}
                   </span>
-                )}{" "}
+                )}
               </button>
 
               <Link
                 to="/cart"
-                className="btn w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
+                className="relative btn w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
               >
                 <img src="/images/shoppingCart.svg" alt="shopping cart" />
+                {cartQty > 0 && (
+                  <span
+                    className="absolute -top-2 -right-2 flex items-center justify-center text-sm font-semibold text-gray-500 bg-gray-200 rounded-full w-4 h-4 shadow-sm"
+                    aria-hidden="true"
+                  >
+                    {cartQty > 99 ? "99+" : cartQty}
+                  </span>
+                )}
               </Link>
 
               <a
