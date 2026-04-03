@@ -73,39 +73,27 @@ public function destroy(Comment $comment)
 {
     $user = request()->user();
 
-    // Authorization: only owner or admin can delete
     if (! $user || ($comment->user_id !== $user->id && !($user->is_admin ?? false))) {
         return response()->json(['message' => 'Forbidden'], 403);
     }
 
-    // If this is a reply (has parent), allow owner to remove it completely if no children,
-    // otherwise soft-delete to preserve reply thread.
+    // If this is a reply
     if ($comment->parent_id !== null) {
         $hasChildren = Comment::where('parent_id', $comment->id)->exists();
 
         if ($hasChildren) {
-            $comment->update([
-                'is_deleted' => true,
-                'deleted_at' => now(),
-                'deleted_by' => $user->id,
-            ]);
-        } else {
+            // soft-delete
             $comment->delete();
+        } else {
+            // no children — remove completely
+            $comment->forceDelete();
         }
 
         return response()->json(null, 204);
     }
 
-    // Root comment:
-    // If it has children -> soft-delete (keep children visible)
-    // If no children -> soft-delete as well (keeps behaviour consistent)
-    $hasChildren = Comment::where('parent_id', $comment->id)->exists();
-
-    $comment->update([
-        'is_deleted' => true,
-        'deleted_at' => now(),
-        'deleted_by' => $user->id,
-    ]);
+    // Root comment — soft-delete to keep children visible
+    $comment->delete();
 
     return response()->json(null, 204);
 }
