@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Link } from "react-router-dom";
 import { useSaved } from "../../../context/save/useSaved.js";
+import { CartContext } from "../../../context/cart/CartContext.jsx";
 
 /**
  Компонент карточка.
@@ -103,6 +104,9 @@ export const Card = React.memo((props) => {
   const { isSaved, setOpen, add } = useSaved();
   const savedActive = isSaved(id);
 
+  // get cart functions
+  const { addToCart } = useContext(CartContext);
+
   const parsePrice = (v) =>
     v === null || v === undefined || v === "" ? null : Number(String(v).trim());
 
@@ -161,6 +165,22 @@ export const Card = React.memo((props) => {
 
   const imgSrc = safeSrc(img, props.details?.img_url);
 
+  // handler: add product to cart using final price
+  const handleAddToCartClick = (e) => {
+    e?.stopPropagation();
+    const product = props.details || {};
+    const cartItem = {
+      id: Number(product.id ?? product.product_id),
+      title: product.title ?? product.name ?? "",
+      price:
+        priceAfter != null ? Number(priceAfter) : Number(product.price ?? 0),
+      img: product.img ?? product.img_url ?? null,
+      quantity: 1,
+      sku: product.sku ?? product.SKU ?? null,
+    };
+    addToCart(cartItem);
+  };
+
   return (
     <div
       className={`cursor-pointer ${className}`}
@@ -181,9 +201,18 @@ export const Card = React.memo((props) => {
         <div className="absolute inset-0 bg-white/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         <div className="flex items-center gap-x-7.5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition duration-300 group-hover:opacity-100 group-hover:scale-105">
-          <Link to="/cart" className="btn" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddToCartClick(e);
+            }}
+            aria-label="Add to cart"
+          >
             <img src="/images/shoppingCart.svg" alt="shopping-cart" />
-          </Link>
+          </button>
+
           <Link
             to={`/products/${id}`}
             className="btn"
@@ -191,17 +220,19 @@ export const Card = React.memo((props) => {
           >
             <img src="/images/eye.svg" alt="eye" />
           </Link>
-          <Link
-            to=""
+
+          <button
+            type="button"
             className="btn"
             onClick={(e) => {
               e.stopPropagation();
               add(props.details, 1);
               setOpen(true);
             }}
+            aria-label="Save product"
           >
             <img src={"/images/heart.svg"} alt="heart" />
-          </Link>
+          </button>
         </div>
       </div>
 
