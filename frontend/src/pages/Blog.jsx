@@ -65,7 +65,7 @@ export const Blog = () => {
               onClick={() => setActiveTab("categories")}
               className={`mb-2.5 text-left ${activeTab === "categories" ? "text-black font-medium" : ""}`}
             >
-              All categories
+              All
             </button>
             <button
               onClick={() => setActiveTab("fashion")}

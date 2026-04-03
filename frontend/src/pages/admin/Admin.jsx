@@ -11,22 +11,6 @@ function getXsrf() {
   );
 }
 
-// function mergeAndDedupeReviews(existing = [], incoming = []) {
-//   const seen = new Set();
-//   const out = [];
-//   const push = (r) => {
-//     const key = `${r.id}-${r.product?.id ?? r.product_id}`;
-//     if (!seen.has(key)) {
-//       seen.add(key);
-//       out.push(r);
-//     }
-//   };
-//   incoming.forEach(push);
-//   existing.forEach(push);
-//   out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-//   return out;
-// }
-
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
 const CURRENCY_SYMBOLS = { $: "$", RUB: "₽", EUR: "€", GBP: "£" };
@@ -245,46 +229,6 @@ export const Admin = () => {
       setPLoading(false);
     }
   }
-
-  // async function loadReviewsForProduct(productId) {
-  //   setProductReviews((prev) => ({
-  //     ...prev,
-  //     [productId]: { ...(prev[productId] || {}), loading: true, error: null },
-  //   }));
-  //   try {
-  //     const res = await apiFetch(`/api/products/${productId}`, {
-  //       headers: { Accept: "application/json" },
-  //     });
-  //     if (!res.ok) throw new Error("Fetch error: " + res.status);
-  //     const json = await res.json().catch(() => null);
-  //     const product = json.data ?? json;
-  //     const reviews = Array.isArray(product?.reviews) ? product.reviews : [];
-  //     setProductReviews((prev) => ({
-  //       ...prev,
-  //       [productId]: {
-  //         ...(prev[productId] || {}),
-  //         loading: false,
-  //         reviews,
-  //         reviews_count: product?.reviews_count ?? reviews.length,
-  //       },
-  //     }));
-  //     aggLoadedProducts.current.add(productId);
-  //     return reviews;
-  //   } catch (err) {
-  //     console.error("loadReviewsForProduct error", productId, err);
-  //     setProductReviews((prev) => ({
-  //       ...prev,
-  //       [productId]: {
-  //         ...(prev[productId] || {}),
-  //         loading: false,
-  //         error: err.message || "Error",
-  //         reviews: [],
-  //         reviews_count: 0,
-  //       },
-  //     }));
-  //     return [];
-  //   }
-  // }
 
   async function loadAdminReviews(page = 1, perPage = 20) {
     setRLoading(true);
