@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/auth/useAuth.js";
+import { useSaved } from "../../../context/save/useSaved.js";
 
 export const Header = () => {
-  const [showHeart, setShowHeart] = useState(false);
   const location = useLocation();
 
   const { user, checking } = useAuth();
   const navigate = useNavigate();
+
+  const { open, setOpen, count } = useSaved();
 
   const isHome = location.pathname === "/" || location.pathname === "";
 
@@ -85,18 +87,42 @@ export const Header = () => {
 
               <span className="text-grey-500">|</span>
 
-              <button
+              {/* <button
                 type="button"
-                onClick={() => setShowHeart((s) => !s)}
+                onClick={() => setOpen((s) => !s)}
                 className="w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
                 aria-label="Saved items"
-                aria-expanded={showHeart}
+                aria-expanded={open}
               >
                 <img
                   className="w-full h-full object-cover"
                   src="/images/heart.svg"
                   alt="saved"
                 />
+                {count > 0 && <span className="badge">{count}</span>}
+              </button> */}
+
+              <button
+                type="button"
+                onClick={() => setOpen((s) => !s)}
+                className="relative w-6 h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
+                aria-label="Saved items"
+                aria-expanded={open}
+              >
+                <img
+                  className="w-full h-full object-cover"
+                  src="/images/heart.svg"
+                  alt="saved"
+                />
+                {count > 0 && (
+                  <span
+                    className="absolute -top-2 -right-2 flex items-center justify-center text-sm font-semibold text-gray-500 bg-gray-200 rounded-full w-4 h-4 shadow-sm"
+                    aria-hidden="true"
+                  >
+                    {" "}
+                    {count > 99 ? "99+" : count}{" "}
+                  </span>
+                )}{" "}
               </button>
 
               <Link
@@ -113,16 +139,6 @@ export const Header = () => {
               >
                 <img src="/images/loginHeader.svg" alt="login" />
               </a>
-            </div>
-
-            <div
-              className={`absolute top-full left-0 right-0 bg-[#EFEFEF] border-t-2 border-[#A18A68] shadow-bottom ${
-                showHeart ? "block z-60" : "hidden"
-              }`}
-            >
-              <div className="container p-6">
-                <div>Saved items panel (to implement)</div>
-              </div>
             </div>
           </div>
         </div>

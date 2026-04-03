@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useSaved } from "../../../context/save/useSaved.js";
 
 /**
  Компонент карточка.
@@ -99,6 +100,9 @@ export const Card = React.memo((props) => {
   const { width, height, heightImg } = props.size || {};
   const { className = "", style = {}, onOpenDetails } = props;
 
+  const { isSaved, setOpen, add } = useSaved();
+  const savedActive = isSaved(id);
+
   const parsePrice = (v) =>
     v === null || v === undefined || v === "" ? null : Number(String(v).trim());
 
@@ -187,8 +191,16 @@ export const Card = React.memo((props) => {
           >
             <img src="/images/eye.svg" alt="eye" />
           </Link>
-          <Link to="" className="btn" onClick={(e) => e.stopPropagation()}>
-            <img src="/images/heart.svg" alt="heart" />
+          <Link
+            to=""
+            className="btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              add(props.details, 1);
+              setOpen(true);
+            }}
+          >
+            <img src={"/images/heart.svg"} alt="heart" />
           </Link>
         </div>
       </div>

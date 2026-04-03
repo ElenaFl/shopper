@@ -21,6 +21,7 @@ import { ResetPassword } from "./pages/auth/ResetPassword.jsx";
 import { CartProvider } from "./context/cart/CartProvider.jsx";
 import { AuthProvider } from "./context/auth/AuthProvider.jsx";
 import { Admin } from "./pages/admin/Admin.jsx";
+import { SavedProvider } from "./context/save/SavedProvider.jsx";
 
 // Определение маршрутов
 const router = createBrowserRouter([
@@ -50,8 +51,10 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")).render(
   //глобальные провайдеры обеспечивают доступность контекста во всём приложении
   <AuthProvider>
-    <CartProvider>
-      <RouterProvider router={router} />
-    </CartProvider>
+    <SavedProvider>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </SavedProvider>
   </AuthProvider>,
 );
