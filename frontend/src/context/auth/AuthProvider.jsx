@@ -78,7 +78,6 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!res.ok) {
-        // Если пришёл 401/403 и мы не хотим сохранять локальный user — очистим его.
         if (!keepLocal) {
           setUser(null);
         }
@@ -87,6 +86,19 @@ export const AuthProvider = ({ children }) => {
 
       const data = await res.json();
       setUser(data);
+
+      // If there was a pending saved->cart intent, notify listeners
+      try {
+        const pending = sessionStorage.getItem("saved_move_to_cart_pending");
+        if (pending) {
+          sessionStorage.removeItem("saved_move_to_cart_pending");
+          // dispatch event so SavedDrawer opens
+          window.dispatchEvent(new CustomEvent("saved:moveToCartPending"));
+        }
+      } catch (e) {
+        // ignore storage errors
+      }
+
       return data;
     } catch (err) {
       console.error("fetchUser error", err);
