@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ReviewController;
 use \App\Http\Controllers\Api\Admin\ReviewAdminController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ChatWidgetController;
 
 /*
 |--------------------------------------------------------------------------
@@ -61,9 +62,14 @@ Route::middleware('web')->group(function () {
 
 
 Route::middleware(['web','auth:sanctum'])->group(function () {
-    Route::post('/chat/sessions', [ChatController::class, 'createSession']);
-    Route::post('/chat/send', [ChatController::class, 'send']);
-    Route::get('/chat/sessions/{id}', [ChatController::class, 'session']);
+    Route::post('/chat/sessions', [ChatController::class, 'createSession'])->middleware('auth:sanctum');
+    Route::post('/chat/send', [ChatController::class, 'send'])->middleware('auth:sanctum');
+    Route::get('/chat/sessions/{id}', [ChatController::class, 'session'])->middleware('auth:sanctum');
+});
+
+Route::middleware(['web','auth:sanctum', 'throttle:30,1'])->group(function () {
+    Route::get('/chat/widget-state', [ChatWidgetController::class, 'getState'])->middleware('auth:sanctum');
+    Route::post('/chat/widget-state', [ChatWidgetController::class, 'setState'])->middleware('auth:sanctum');
 });
 
 
