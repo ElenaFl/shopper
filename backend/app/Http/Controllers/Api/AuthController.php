@@ -122,27 +122,35 @@ class AuthController extends Controller
         return response()->json($response, 200);
     }
 
-    public function logout(Request $request) { // удаляет аутентификацию (session-based) try { Auth::logout(); $request->session()->invalidate(); $request->session()->regenerateToken(); } catch (\Throwable $e) { Log::warning('Logout issue: ' . $e->getMessage()); }
+    public function logout(Request $request) {
+        // удаляет аутентификацию (session-based)
+        try {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        } catch (\Throwable $e) {
+            Log::warning('Logout issue: ' . $e->getMessage());
+        }
 
-// поставить в очередь удаление куки (Set-Cookie с истёкшей датой)
-Cookie::queue(Cookie::forget('XSRF-TOKEN'));
+        // поставить в очередь удаление куки (Set-Cookie с истёкшей датой)
+        Cookie::queue(Cookie::forget('XSRF-TOKEN'));
 
-// Явное формирование истёкшей laravel_session куки с теми же атрибутами, что в config/session.php,
-// чтобы гарантированно удалить session cookie у клиента (включая httponly)
-$expiredSession = Cookie::make(
-    config('session.cookie', 'laravel_session'),
-    null,
-    -2628000,
-    config('session.path', '/'),
-    config('session.domain', null),
-    config('session.secure', false),
-    true,
-    false,
-    config('session.same_site', 'lax')
-);
-Cookie::queue($expiredSession);
+        // Явное формирование истёкшей laravel_session куки с теми же атрибутами, что в config/session.php,
+        // чтобы гарантированно удалить session cookie у клиента (включая httponly)
+        $expiredSession = Cookie::make(
+            config('session.cookie', 'laravel_session'),
+            null,
+            -2628000,
+            config('session.path', '/'),
+            config('session.domain', null),
+            config('session.secure', false),
+            true,
+            false,
+            config('session.same_site', 'lax')
+        );
+        Cookie::queue($expiredSession);
 
-return response()->json(['message' => 'Logged out'], 200);
+        return response()->json(['message' => 'Logged out'], 200);
     }
 
     public function me(Request $request)

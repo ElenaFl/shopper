@@ -209,6 +209,39 @@ export const Account = () => {
         <h1 className="text-[33px] font-medium text-center mb-16">
           My account
         </h1>
+
+        {/* GitHub OAuth button */}
+        <div className="max-w-125 mx-auto mb-6 px-2">
+          <button
+            type="button"
+            onClick={() => {
+              // используем BACKEND из контекста auth (пример: http://shopper.local)
+              // если у вас BACKEND в useAuth, замените соответственно
+              const backend =
+                typeof BACKEND !== "undefined" && BACKEND
+                  ? BACKEND.replace(/\/$/, "")
+                  : "http://shopper.local";
+              window.location.href = `${backend}/auth/github`;
+            }}
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 font-medium border rounded-sm bg-white hover:bg-gray-100 text-black"
+            aria-label="Sign in with GitHub"
+          >
+            {/* GitHub icon (inline SVG) */}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M12 .5C5.73.5.75 5.48.75 11.75c0 4.9 3.19 9.06 7.61 10.53.56.1.76-.24.76-.53 0-.26-.01-1-.02-1.95-3.09.67-3.74-1.49-3.74-1.49-.5-1.28-1.22-1.62-1.22-1.62-.99-.68.08-.67.08-.67 1.1.08 1.68 1.13 1.68 1.13.97 1.66 2.54 1.18 3.15.9.1-.7.38-1.18.69-1.45-2.47-.28-5.07-1.24-5.07-5.53 0-1.22.44-2.22 1.16-3-.12-.28-.5-1.42.11-2.96 0 0 .95-.3 3.12 1.15a10.8 10.8 0 012.84-.38c.96.01 1.93.13 2.84.38 2.16-1.45 3.11-1.15 3.11-1.15.62 1.54.24 2.68.12 2.96.72.78 1.16 1.78 1.16 3 0 4.29-2.61 5.24-5.09 5.52.39.34.73 1.02.73 2.06 0 1.49-.01 2.69-.01 3.06 0 .3.2.64.77.53 4.42-1.47 7.61-5.63 7.61-10.53C23.25 5.48 18.27.5 12 .5z" />
+            </svg>
+
+            <span>Войти через GitHub</span>
+          </button>
+        </div>
+
         <div className="mb-8">
           <ChatWidget />
         </div>
