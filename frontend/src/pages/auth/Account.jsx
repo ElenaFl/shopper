@@ -211,7 +211,7 @@ export const Account = () => {
         </h1>
 
         {/* GitHub OAuth button */}
-        <div className="max-w-125 mx-auto mb-6 px-2">
+        <div className="max-w-125 mx-auto mb-6">
           <button
             type="button"
             onClick={() => {
@@ -223,7 +223,7 @@ export const Account = () => {
                   : "http://shopper.local";
               window.location.href = `${backend}/auth/github`;
             }}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 font-medium border rounded-sm bg-white hover:bg-gray-100 text-black"
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 font-medium border rounded-sm bg-white hover:bg-[#EFEFEF] text-black cursor-pointer"
             aria-label="Sign in with GitHub"
           >
             {/* GitHub icon (inline SVG) */}
@@ -238,12 +238,8 @@ export const Account = () => {
               <path d="M12 .5C5.73.5.75 5.48.75 11.75c0 4.9 3.19 9.06 7.61 10.53.56.1.76-.24.76-.53 0-.26-.01-1-.02-1.95-3.09.67-3.74-1.49-3.74-1.49-.5-1.28-1.22-1.62-1.22-1.62-.99-.68.08-.67.08-.67 1.1.08 1.68 1.13 1.68 1.13.97 1.66 2.54 1.18 3.15.9.1-.7.38-1.18.69-1.45-2.47-.28-5.07-1.24-5.07-5.53 0-1.22.44-2.22 1.16-3-.12-.28-.5-1.42.11-2.96 0 0 .95-.3 3.12 1.15a10.8 10.8 0 012.84-.38c.96.01 1.93.13 2.84.38 2.16-1.45 3.11-1.15 3.11-1.15.62 1.54.24 2.68.12 2.96.72.78 1.16 1.78 1.16 3 0 4.29-2.61 5.24-5.09 5.52.39.34.73 1.02.73 2.06 0 1.49-.01 2.69-.01 3.06 0 .3.2.64.77.53 4.42-1.47 7.61-5.63 7.61-10.53C23.25 5.48 18.27.5 12 .5z" />
             </svg>
 
-            <span>Войти через GitHub</span>
+            <span>Log in through the GitHub</span>
           </button>
-        </div>
-
-        <div className="mb-8">
-          <ChatWidget />
         </div>
       </div>
 
@@ -508,8 +504,8 @@ export const Account = () => {
               onCategoryChange={(category) => setActiveCategory(category)}
               tabClassName="flex w-full bg-[#EFEFEF] p-1 rounded-sm"
               tabItemClassName="flex-1 text-center py-4 font-medium rounded-sm"
-              activeClassName="bg-white text-black"
-              inactiveClassName="bg-transparent text-[#707070]"
+              activeClassName="bg-white text-black cursor-pointer"
+              inactiveClassName="bg-transparent text-[#707070] cursor-pointer"
             />
           </div>
 
@@ -550,7 +546,7 @@ export const Account = () => {
 
                 <button
                   type="submit"
-                  className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm cursor-pointer bg-black text-white hover:bg-white hover:text-black"
+                  className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm bg-black text-white hover:bg-white hover:text-black cursor-pointer"
                   disabled={loading}
                 >
                   Sign in
@@ -586,7 +582,7 @@ export const Account = () => {
                 <input
                   type="email"
                   name="email"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
+                  className="w-full pb-3 border-b border-[#D8D8D8] mb-1"
                   placeholder="Email*"
                   required
                   onInput={clearErrorOnInput}

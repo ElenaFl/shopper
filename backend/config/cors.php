@@ -6,12 +6,12 @@ return [
         'api/*',
         'sanctum/csrf-cookie',
         'login',
-        '/login'
+        'logout'
     ],
     'allowed_methods' => ['*'],
     'allowed_origins' => [
-        'http://shopper.local:5173',
         'http://shopper.local',
+        'http://shopper.local:5173',
         'http://localhost:8000',
         'http://localhost:5173'
     ],
