@@ -4,6 +4,7 @@ import { Tabs } from "../../components/ui/Tabs/Tabs.jsx";
 import { Select } from "../../components/ui/Select/Select.jsx";
 import { Button } from "../../components/ui/Button/Button.jsx";
 import { useAuth } from "../../context/auth/useAuth.js";
+import ChatWidget from "../../components/ui/ChatWidget/ChatWidget.jsx";
 
 /**
  * Компонент Account - UI для входа и регистрации со вкладками (Tabs).
@@ -208,6 +209,9 @@ export const Account = () => {
         <h1 className="text-[33px] font-medium text-center mb-16">
           My account
         </h1>
+        <div className="mb-8">
+          <ChatWidget />
+        </div>
       </div>
 
       {error && <div className="text-red-500 mb-4 text-center">{error}</div>}

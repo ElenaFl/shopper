@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ReviewController;
 use \App\Http\Controllers\Api\Admin\ReviewAdminController;
+use App\Http\Controllers\ChatController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,6 +57,13 @@ Route::middleware('web')->group(function () {
     Route::get('/products/{product}/reviews', [ReviewController::class, 'index'])->middleware('auth:sanctum');
     Route::get('reviews', [ReviewAdminController::class, 'index'])->middleware('auth:sanctum');
     Route::delete('/products/{product}/reviews/{review}', [ReviewController::class, 'destroy'])->middleware('auth:sanctum');
+});
+
+
+Route::middleware(['web','auth:sanctum'])->group(function () {
+    Route::post('/chat/sessions', [ChatController::class, 'createSession']);
+    Route::post('/chat/send', [ChatController::class, 'send']);
+    Route::get('/chat/sessions/{id}', [ChatController::class, 'session']);
 });
 
 
