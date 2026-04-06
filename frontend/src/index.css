@@ -316,7 +316,7 @@ counter-button:active {
 /* усиленное мерцание для нижних частиц */
 @keyframes dustSparkleBottom {
   0% {
-    opacity: 0;
+    opacity: 0.1;
     transform: translateX(-50%) translateY(8px) scale(0.88);
     filter: blur(1px) brightness(0.95);
   }
