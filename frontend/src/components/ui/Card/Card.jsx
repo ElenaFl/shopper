@@ -29,7 +29,7 @@ const formatMoney = (value, currencyLabel) => {
         maximumFractionDigits: 2,
       }).format(n);
     }
-  } catch () {
+  } catch (e) {
     // fallback
   }
   return n.toFixed(2) + (currencyLabel ? " " + currencyLabel : "");
