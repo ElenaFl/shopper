@@ -1,23 +1,32 @@
 import React, { useEffect, useState, useRef } from "react";
 
-const GOLD = "#A18A68";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 const API_GET = `${API_BASE}/api/chat/widget-state`;
 const API_SET = `${API_BASE}/api/chat/widget-state`;
+const API_SESSIONS = `${API_BASE}/api/chat/sessions`;
+const API_SEND = `${API_BASE}/api/chat/send`;
 const SANCTUM = `${API_BASE}/sanctum/csrf-cookie`;
 
-export default function ChatWidget() {
+/**
+  Production-ready ChatWidget:
+  - session lifecycle via POST /api/chat/sessions
+  - send messages with { session_id, content } to POST /api/chat/send
+  - load widget-state and history from GET /api/chat/widget-state
+  - robust normalization & safe rendering of server responses
+  - visual diadem and styles
+*/
+
+export const ChatWidget = () => {
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [hidden, setHidden] = useState(true);
   const [visible, setVisible] = useState(false);
 
-  // chat state
-  const [messages, setMessages] = useState([]);
+  const [session, setSession] = useState(null);
+  const [messages, setMessages] = useState([]); // { role, content }
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
 
-  // diadem visibility (separate state for delayed appearance)
   const [diademVisible, setDiademVisible] = useState(false);
 
   const mountedRef = useRef(false);
@@ -26,11 +35,12 @@ export default function ChatWidget() {
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchWidgetState();
+    initWidget();
     return () => {
       mountedRef.current = false;
       clearTimeout(diademTimerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -49,7 +59,7 @@ export default function ChatWidget() {
     }
   }
 
-  async function fetchWidgetState() {
+  async function initWidget() {
     try {
       const res = await fetch(API_GET, {
         method: "GET",
@@ -68,24 +78,180 @@ export default function ChatWidget() {
       setHidden(Boolean(data.hidden));
       setLoading(false);
 
+      // restore history if present
+      if (Array.isArray(data.messages) && data.messages.length > 0) {
+        setMessages(data.messages.map(normalizeServerMessage));
+      } else if (Array.isArray(data.history) && data.history.length > 0) {
+        setMessages(data.history.map(normalizeServerMessage));
+      }
+
       if (data.enabled && !data.hidden) {
-        // show widget, then diadem with delay
         setTimeout(() => {
           if (!mountedRef.current) return;
           setVisible(true);
           clearTimeout(diademTimerRef.current);
           diademTimerRef.current = setTimeout(() => {
             if (mountedRef.current) setDiademVisible(true);
-          }, 160); // diadem delay
-        }, 50); // small initial delay
+          }, 160);
+        }, 50);
       }
     } catch (e) {
-      console.error("ChatWidget getState failed", e);
+      console.error("initWidget failed", e);
       setLoading(false);
     }
   }
 
-  async function setWidgetHiddenState(val) {
+  // normalize server message -> { role, content } with content string
+  function normalizeServerMessage(msg) {
+    if (typeof msg === "string") return { role: "assistant", content: msg };
+    if (!msg || typeof msg !== "object")
+      return { role: "assistant", content: String(msg ?? "") };
+
+    const role = msg.role ?? "assistant";
+    let content = msg.content ?? msg.reply ?? msg.text ?? "";
+
+    if (Array.isArray(content)) {
+      content = content
+        .map((c) => (typeof c === "string" ? c : JSON.stringify(c)))
+        .join("\n");
+    } else if (typeof content === "object") {
+      content = JSON.stringify(content);
+    } else if (content == null) {
+      content = "";
+    } else {
+      content = String(content);
+    }
+
+    return { role, content };
+  }
+
+  function renderContent(content) {
+    if (content == null) return "";
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((c, i) =>
+        typeof c === "string" ? (
+          <div key={i}>{c}</div>
+        ) : (
+          <pre key={i}>{JSON.stringify(c)}</pre>
+        ),
+      );
+    }
+    return <pre>{JSON.stringify(content)}</pre>;
+  }
+
+  // create session on server (stores in state)
+  async function createSession() {
+    try {
+      const xsrf = await fetchSanctumCsrf();
+      const res = await fetch(API_SESSIONS, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(xsrf ? { "X-XSRF-TOKEN": xsrf } : {}),
+          Accept: "application/json",
+        },
+        body: null,
+      });
+      if (!res.ok) {
+        throw new Error("Failed to create session: " + res.status);
+      }
+      const data = await res.json();
+      setSession(data);
+      return data;
+    } catch (e) {
+      console.error("createSession failed", e);
+      throw e;
+    }
+  }
+
+  async function handleSend() {
+    if (!input.trim() || sending) return;
+    const text = input.trim();
+    setMessages((m) => [...m, { role: "user", content: text }]);
+    setInput("");
+    setSending(true);
+
+    try {
+      if (!session) {
+        await createSession();
+      }
+
+      await fetchSanctumCsrf();
+      const xsrf = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1];
+
+      const res = await fetch(API_SEND, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(xsrf ? { "X-XSRF-TOKEN": decodeURIComponent(xsrf) } : {}),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({
+          session_id: session?.id ?? null,
+          content: text,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => null);
+        console.error("chat send failed", res.status, err);
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: "Ошибка отправки сообщения." },
+        ]);
+        setSending(false);
+        return;
+      }
+
+      const data = await res.json();
+      const toInsert = [];
+      if (data.reply) toInsert.push(normalizeServerMessage(data.reply));
+      if (data.content)
+        toInsert.push(
+          normalizeServerMessage({
+            content: data.content,
+            role: data.role ?? "assistant",
+          }),
+        );
+      if (Array.isArray(data.messages))
+        data.messages.forEach((msg) =>
+          toInsert.push(normalizeServerMessage(msg)),
+        );
+      if (
+        data &&
+        !Array.isArray(data) &&
+        data.content &&
+        !data.messages &&
+        !data.reply
+      )
+        toInsert.push(normalizeServerMessage(data));
+
+      if (toInsert.length === 0)
+        toInsert.push({
+          role: "assistant",
+          content: "Пустой ответ от сервера.",
+        });
+
+      setMessages((m) => [...m, ...toInsert]);
+      setSending(false);
+    } catch (e) {
+      console.error("handleSend error", e);
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: "Сервис недоступен — попробуйте позже." },
+      ]);
+      setSending(false);
+    }
+  }
+
+  const handleClose = async () => {
+    setDiademVisible(false);
+    setVisible(false);
+    setTimeout(() => setHidden(true), 260);
     try {
       await fetchSanctumCsrf();
       const xsrf = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1];
@@ -98,54 +264,36 @@ export default function ChatWidget() {
           ...(xsrf ? { "X-XSRF-TOKEN": decodeURIComponent(xsrf) } : {}),
           "X-Requested-With": "XMLHttpRequest",
         },
-        body: JSON.stringify({ hidden: !!val }),
+        body: JSON.stringify({ hidden: true }),
       });
     } catch (e) {
-      console.error("ChatWidget setState failed", e);
+      console.error("set hidden failed", e);
     }
-  }
-
-  const handleClose = async () => {
-    // hide diadem immediately for clean exit
-    setDiademVisible(false);
-    // animate container hide
-    setVisible(false);
-    // after animation finish, mark hidden and persist
-    setTimeout(() => setHidden(true), 260);
-    await setWidgetHiddenState(true);
   };
 
   const handleOpen = async () => {
     setHidden(false);
-    // small delay before showing container to allow layout changes
     setTimeout(() => {
       setVisible(true);
       clearTimeout(diademTimerRef.current);
       diademTimerRef.current = setTimeout(() => setDiademVisible(true), 160);
     }, 20);
-    await setWidgetHiddenState(false);
-  };
-
-  // placeholder send
-  const handleSend = async () => {
-    if (!input.trim() || sending) return;
-    const text = input.trim();
-    setMessages((m) => [...m, { role: "user", content: text }]);
-    setInput("");
-    setSending(true);
     try {
       await fetchSanctumCsrf();
-      // simulate assistant reply
-      setTimeout(() => {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: "Спасибо! Ваше сообщение получено." },
-        ]);
-        setSending(false);
-      }, 700);
+      const xsrf = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1];
+      await fetch(API_SET, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(xsrf ? { "X-XSRF-TOKEN": decodeURIComponent(xsrf) } : {}),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({ hidden: false }),
+      });
     } catch (e) {
-      console.error(e);
-      setSending(false);
+      console.error("set hidden failed", e);
     }
   };
 
@@ -154,7 +302,6 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* open button (shown when widget hidden) */}
       {hidden && (
         <button
           onClick={handleOpen}
@@ -184,7 +331,6 @@ export default function ChatWidget() {
         </button>
       )}
 
-      {/* Widget container */}
       <div
         className="fixed"
         style={{
@@ -212,41 +358,7 @@ export default function ChatWidget() {
             pointerEvents: visible ? "auto" : "none",
           }}
         >
-          {/* Diadem */}
-          {/* <div
-            style={{
-              position: "relative",
-              width: 120,
-              height: 28,
-              marginLeft: 35,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              pointerEvents: "none",
-              transform: diademVisible
-                ? "translateY(16px)"
-                : "translateY(10px)",
-              transition:
-                "opacity 360ms ease, transform 360ms cubic-bezier(.2,.9,.3,1)",
-              opacity: diademVisible ? 1 : 0,
-            }}
-          >
-            <img
-              src="/images/tiara.png"
-              alt=""
-              style={{
-                width: "120px",
-                height: "auto",
-                objectFit: "contain",
-                filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.12))",
-                opacity: 0.98,
-                display: "block",
-              }}
-            />
-          </div> */}
-
-          {/* Diadem container with subtle sparkle overlay */}
-
+          {/* Diadem (tiara) */}
           <div
             style={{
               position: "relative",
@@ -265,12 +377,11 @@ export default function ChatWidget() {
               opacity: diademVisible ? 1 : 0,
             }}
           >
-            {" "}
             <img
               src="/images/tiara.png"
-              alt=""
+              alt="diadem"
               style={{
-                width: "120px",
+                width: 120,
                 height: "auto",
                 objectFit: "contain",
                 filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.12))",
@@ -278,7 +389,6 @@ export default function ChatWidget() {
                 display: "block",
               }}
             />
-            {/* subtle sparkle overlay (absolute, pointer-events none) */}
             <div
               aria-hidden="true"
               style={{
@@ -290,8 +400,7 @@ export default function ChatWidget() {
               }}
               className="tiara-sparkles"
             >
-              {" "}
-              {/* Inline SVG with tiny sparkles and a moving sheen gradient */}{" "}
+              {/* Inline SVG sparkles */}
               <svg
                 width="120"
                 height="28"
@@ -299,27 +408,17 @@ export default function ChatWidget() {
                 xmlns="http://www.w3.org/2000/svg"
                 style={{ width: "100%", height: "100%" }}
               >
-                {" "}
                 <defs>
-                  {" "}
                   <linearGradient id="sheenGrad" x1="0" x2="1">
-                    {" "}
-                    <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />{" "}
-                    <stop offset="50%" stopColor="rgba(255,255,255,0.65)" />{" "}
-                    <stop
-                      offset="100%"
-                      stopColor="rgba(255,255,255,0.0)"
-                    />{" "}
+                    <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
+                    <stop offset="50%" stopColor="rgba(255,255,255,0.65)" />
+                    <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
                   </linearGradient>
                   <radialGradient id="spark" cx="50%" cy="50%" r="50%">
                     <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
                     <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
                   </radialGradient>
-                  <mask id="sheenMask">
-                    <rect x="0" y="0" width="120" height="28" fill="white" />
-                  </mask>
                 </defs>
-                {/* few small static sparkles */}
                 <circle
                   cx="28"
                   cy="8"
@@ -348,7 +447,6 @@ export default function ChatWidget() {
                   fill="url(#spark)"
                   opacity="0.8"
                 />
-                {/* moving sheen rectangle (use transform animate via CSS) */}
                 <rect
                   className="sheen"
                   x="-40"
@@ -360,7 +458,7 @@ export default function ChatWidget() {
                   rx="6"
                 />
               </svg>
-            </div>{" "}
+            </div>
           </div>
 
           {/* Header */}
@@ -435,7 +533,7 @@ export default function ChatWidget() {
                     }}
                   >
                     <div style={{ fontSize: 14, lineHeight: 1.3 }}>
-                      {m.content}
+                      {renderContent(m.content)}
                     </div>
                   </div>
                 </div>
@@ -487,4 +585,4 @@ export default function ChatWidget() {
       </div>
     </>
   );
-}
+};
