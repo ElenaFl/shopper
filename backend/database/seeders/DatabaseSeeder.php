@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CategoriesSeeder::class,
             ProductsSeeder::class,
+            DiscountsTableSeeder::class,
             AdminUserSeeder::class,
-            DiscountSeeder::class,
             BlogSeeder::class,
             SmartUsersAvatarSeeder::class,
             MarkAuthorCommentsDeletedSeeder::class,
