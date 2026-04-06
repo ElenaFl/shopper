@@ -11,17 +11,25 @@ export default function ChatWidget() {
   const [enabled, setEnabled] = useState(false);
   const [hidden, setHidden] = useState(true);
   const [visible, setVisible] = useState(false);
+
+  // chat state
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+
+  // diadem visibility (separate state for delayed appearance)
+  const [diademVisible, setDiademVisible] = useState(false);
+
   const mountedRef = useRef(false);
   const scrollRef = useRef(null);
+  const diademTimerRef = useRef(null);
 
   useEffect(() => {
     mountedRef.current = true;
     fetchWidgetState();
     return () => {
       mountedRef.current = false;
+      clearTimeout(diademTimerRef.current);
     };
   }, []);
 
@@ -59,9 +67,20 @@ export default function ChatWidget() {
       setEnabled(Boolean(data.enabled));
       setHidden(Boolean(data.hidden));
       setLoading(false);
-      if (data.enabled && !data.hidden) setTimeout(() => setVisible(true), 50);
+
+      if (data.enabled && !data.hidden) {
+        // show widget, then diadem with delay
+        setTimeout(() => {
+          if (!mountedRef.current) return;
+          setVisible(true);
+          clearTimeout(diademTimerRef.current);
+          diademTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) setDiademVisible(true);
+          }, 160); // diadem delay
+        }, 50); // small initial delay
+      }
     } catch (e) {
-      console.error(e);
+      console.error("ChatWidget getState failed", e);
       setLoading(false);
     }
   }
@@ -82,18 +101,28 @@ export default function ChatWidget() {
         body: JSON.stringify({ hidden: !!val }),
       });
     } catch (e) {
-      console.error(e);
+      console.error("ChatWidget setState failed", e);
     }
   }
 
   const handleClose = async () => {
+    // hide diadem immediately for clean exit
+    setDiademVisible(false);
+    // animate container hide
     setVisible(false);
+    // after animation finish, mark hidden and persist
     setTimeout(() => setHidden(true), 260);
     await setWidgetHiddenState(true);
   };
+
   const handleOpen = async () => {
     setHidden(false);
-    setVisible(true);
+    // small delay before showing container to allow layout changes
+    setTimeout(() => {
+      setVisible(true);
+      clearTimeout(diademTimerRef.current);
+      diademTimerRef.current = setTimeout(() => setDiademVisible(true), 160);
+    }, 20);
     await setWidgetHiddenState(false);
   };
 
@@ -106,6 +135,7 @@ export default function ChatWidget() {
     setSending(true);
     try {
       await fetchSanctumCsrf();
+      // simulate assistant reply
       setTimeout(() => {
         setMessages((m) => [
           ...m,
@@ -124,19 +154,18 @@ export default function ChatWidget() {
 
   return (
     <>
+      {/* open button (shown when widget hidden) */}
       {hidden && (
         <button
           onClick={handleOpen}
           aria-label="Open chat"
           className="fixed right-6 bottom-6 z-50 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg"
           style={{
-            background: "rgba(161,138,104,0.95)",
+            background: "#7D7D7D",
             color: "#fff",
             backdropFilter: "blur(4px)",
             boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-            transform: hidden
-              ? "translateY(0) scale(1)"
-              : "translateY(0) scale(1.02)",
+            transform: "translateY(0) scale(1)",
             transition:
               "transform 240ms cubic-bezier(.2,.9,.3,1), opacity 200ms ease",
             opacity: 1,
@@ -155,21 +184,27 @@ export default function ChatWidget() {
         </button>
       )}
 
-      {/* Widget */}
+      {/* Widget container */}
       <div
-        className="fixed right-6 bottom-6 z-40"
-        style={{ width: 300, maxWidth: "calc(100% - 32px)" }}
+        className="fixed"
+        style={{
+          right: 50,
+          bottom: 24,
+          zIndex: 40,
+          width: 300,
+          maxWidth: "calc(100% - 32px)",
+        }}
       >
         <div
           className="relative rounded-xl overflow-hidden"
           style={{
             transformOrigin: "bottom right",
             backdropFilter: "blur(8px)",
-            background: "rgba(255,255,255,0.65)",
-            border: "1px solid rgba(161,138,104,0.16)",
+            background: "rgba(211,211,211,0)",
+            border: `1px solid rgba(161,138,104,0.16)`,
             boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
             transition:
-              "transform 560ms cubic-bezier(0.16, 0.84, 0.24, 1), opacity 480ms ease, box-shadow 300ms ease",
+              "transform 560ms cubic-bezier(0.16,0.84,0.24,1), opacity 480ms ease, box-shadow 300ms ease",
             transform: visible
               ? "translateY(0) scale(1)"
               : "translateY(20px) scale(0.994)",
@@ -177,19 +212,23 @@ export default function ChatWidget() {
             pointerEvents: visible ? "auto" : "none",
           }}
         >
-          {/* Diadem (bigger & clearer) */}
-
-          <div
+          {/* Diadem */}
+          {/* <div
             style={{
               position: "relative",
               width: 120,
               height: 28,
-              marginLeft: 35, // сдвигаем правее
+              marginLeft: 35,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               pointerEvents: "none",
-              transform: "translateY(16px)", // опускаем вниз
+              transform: diademVisible
+                ? "translateY(16px)"
+                : "translateY(10px)",
+              transition:
+                "opacity 360ms ease, transform 360ms cubic-bezier(.2,.9,.3,1)",
+              opacity: diademVisible ? 1 : 0,
             }}
           >
             <img
@@ -204,6 +243,124 @@ export default function ChatWidget() {
                 display: "block",
               }}
             />
+          </div> */}
+
+          {/* Diadem container with subtle sparkle overlay */}
+
+          <div
+            style={{
+              position: "relative",
+              width: 120,
+              height: 28,
+              marginLeft: 35,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              transform: diademVisible
+                ? "translateY(16px)"
+                : "translateY(10px)",
+              transition:
+                "opacity 360ms ease, transform 360ms cubic-bezier(.2,.9,.3,1)",
+              opacity: diademVisible ? 1 : 0,
+            }}
+          >
+            {" "}
+            <img
+              src="/images/tiara.png"
+              alt=""
+              style={{
+                width: "120px",
+                height: "auto",
+                objectFit: "contain",
+                filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.12))",
+                opacity: 0.98,
+                display: "block",
+              }}
+            />
+            {/* subtle sparkle overlay (absolute, pointer-events none) */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "block",
+                pointerEvents: "none",
+                overflow: "visible",
+              }}
+              className="tiara-sparkles"
+            >
+              {" "}
+              {/* Inline SVG with tiny sparkles and a moving sheen gradient */}{" "}
+              <svg
+                width="120"
+                height="28"
+                viewBox="0 0 120 28"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ width: "100%", height: "100%" }}
+              >
+                {" "}
+                <defs>
+                  {" "}
+                  <linearGradient id="sheenGrad" x1="0" x2="1">
+                    {" "}
+                    <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />{" "}
+                    <stop offset="50%" stopColor="rgba(255,255,255,0.65)" />{" "}
+                    <stop
+                      offset="100%"
+                      stopColor="rgba(255,255,255,0.0)"
+                    />{" "}
+                  </linearGradient>
+                  <radialGradient id="spark" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
+                    <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
+                  </radialGradient>
+                  <mask id="sheenMask">
+                    <rect x="0" y="0" width="120" height="28" fill="white" />
+                  </mask>
+                </defs>
+                {/* few small static sparkles */}
+                <circle
+                  cx="28"
+                  cy="8"
+                  r="1.6"
+                  fill="url(#spark)"
+                  opacity="0.9"
+                />
+                <circle
+                  cx="46"
+                  cy="6"
+                  r="1.2"
+                  fill="url(#spark)"
+                  opacity="0.85"
+                />
+                <circle
+                  cx="72"
+                  cy="10"
+                  r="1.8"
+                  fill="url(#spark)"
+                  opacity="0.9"
+                />
+                <circle
+                  cx="96"
+                  cy="7"
+                  r="1.2"
+                  fill="url(#spark)"
+                  opacity="0.8"
+                />
+                {/* moving sheen rectangle (use transform animate via CSS) */}
+                <rect
+                  className="sheen"
+                  x="-40"
+                  y="-6"
+                  width="60"
+                  height="40"
+                  fill="url(#sheenGrad)"
+                  opacity="0.32"
+                  rx="6"
+                />
+              </svg>
+            </div>{" "}
           </div>
 
           {/* Header */}
@@ -214,7 +371,7 @@ export default function ChatWidget() {
                   width: 44,
                   height: 44,
                   borderRadius: 10,
-                  background: GOLD,
+                  background: "#7D7D7D",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -225,14 +382,16 @@ export default function ChatWidget() {
                 AI
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Support</div>
-                <div style={{ fontSize: 12, color: "#6b6b6b" }}>Онлайн</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#222" }}>
+                  Support
+                </div>
+                <div style={{ fontSize: 12, color: "#444" }}>Онлайн</div>
               </div>
             </div>
             <button
               onClick={handleClose}
               aria-label="Close"
-              className="p-2"
+              className="p-2 cursor-pointer"
               style={{ color: "#6b6b6b" }}
             >
               ×
@@ -312,7 +471,7 @@ export default function ChatWidget() {
                 disabled={sending}
                 className="py-1.5 rounded-md"
                 style={{
-                  background: GOLD,
+                  background: "#7D7D7D",
                   color: "#fff",
                   fontWeight: 500,
                   fontSize: 13,

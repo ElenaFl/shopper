@@ -292,14 +292,14 @@ counter-button:active {
   35% {
     opacity: 0.95;
     transform: translateX(-50%) translateY(-3px) scale(1.02);
-    /* filter: blur(0.5px) brightness(1.25) saturate(1.4) */
-    /* drop-shadow(0 0 4px rgba(255, 245, 202, 0.262)); */
+    filter: blur(0.5px) brightness(1.25) saturate(1.4)
+      drop-shadow(0 0 4px rgba(255, 245, 202, 0.262));
   }
   55% {
     opacity: 0.9;
     transform: translateX(-50%) translateY(-2px) scale(0.99);
-    /* filter: blur(0.55px) brightness(1.18) saturate(1.3) */
-    /* drop-shadow(0 0 3px rgba(245, 188, 1, 0.991)); */
+    filter: blur(0.55px) brightness(1.18) saturate(1.3)
+      drop-shadow(0 0 3px rgba(245, 188, 1, 0.991));
   }
   80% {
     opacity: 0.6;
@@ -309,7 +309,7 @@ counter-button:active {
   100% {
     opacity: 0;
     transform: translateX(-50%) translateY(-8px) scale(0.88);
-    /* filter: blur(1px) brightness(0.95) saturate(1); */
+    filter: blur(1px) brightness(0.95) saturate(1);
   }
 }
 
@@ -323,22 +323,60 @@ counter-button:active {
   20% {
     opacity: 1;
     transform: translateX(-50%) translateY(4px) scale(1);
-    /* filter: blur(0.6px) brightness(1.18) saturate(1.3) */
-    /* drop-shadow(0 0 3px rgb(169, 115, 1)); */
+    filter: blur(0.6px) brightness(1.18) saturate(1.3)
+      drop-shadow(0 0 3px rgb(169, 115, 1));
   }
   45% {
     opacity: 0.92;
     transform: translateX(-50%) translateY(2px) scale(1.02);
-    /* filter: blur(0.5px) brightness(1.22) drop-shadow(0 0 4px rgb(134, 103, 0)); */
+    filter: blur(0.5px) brightness(1.22) drop-shadow(0 0 4px rgb(134, 103, 0));
   }
   70% {
     opacity: 0.7;
     transform: translateX(-50%) translateY(1px) scale(0.99);
-    /* filter: blur(0.6px) brightness(1.07); */
+    filter: blur(0.6px) brightness(1.07);
   }
   100% {
     opacity: 0;
     transform: translateX(-50%) translateY(8px) scale(0.88);
     filter: blur(1px) brightness(0.95);
+  }
+}
+
+/* Sparkle sheen animation */
+.tiara-sparkles .sheen {
+  transform-origin: center;
+  animation: tiaraSheenMove 2.2s linear infinite;
+}
+
+/* move from left to right smoothly */
+@keyframes tiaraSheenMove {
+  0% {
+    transform: translateX(-60px) rotate(-10deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.45;
+  }
+  60% {
+    transform: translateX(80px) rotate(10deg);
+    opacity: 0.45;
+  }
+  90% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(160px) rotate(10deg);
+    opacity: 0;
+  }
+}
+
+/* hide sparkles on small screens to save space */
+@media (max-width: 640px) {
+  .tiara-sparkles {
+    display: none !important;
   }
 }
