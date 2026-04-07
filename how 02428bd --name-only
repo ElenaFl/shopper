@@ -1,0 +1,20 @@
+[33m0fd18e4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtask-37[m[33m, [m[1;31morigin/task-37[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Merge pull request #43 from ElenaFl/task-36
+[33m02428bd[m[33m ([m[1;31morigin/task-36[m[33m, [m[1;32mtask-36[m[33m)[m Restore chat widget and related UI fixes (session, history, diadem)
+[33ma4316f3[m Merge pull request #42 from ElenaFl/task-35
+[33ma1ea49b[m[33m ([m[1;31morigin/task-35[m[33m, [m[1;32mtask-35[m[33m)[m Consolidate products schema; add discounts migration and DiscountsTableSeeder; seed initial data
+[33m752062e[m Пересоздание таблиц products, discounts с учетом внешнего ключа product_id для каскадного удаления скидок
+[33mdfa76b2[m Remove add_product_id_to_discounts_table migration (applied manually)
+[33m5c60950[m Remove old discounts creation migration
+[33mebdc9af[m Merge pull request #40 from ElenaFl/task-35
+[33m8f4494a[m Диадема
+[33mceb1a26[m Прикрутить диадему, добавить анимацию
+[33m77f5f97[m Merge pull request #39 from ElenaFl/task-34
+[33m24069b1[m[33m ([m[1;31morigin/task-34[m[33m, [m[1;32mtask-34[m[33m)[m Восстановить значения в поле product_id таблицы disconts
+[33mda22757[m Merge pull request #38 from ElenaFl/task-33
+[33m08e3205[m[33m ([m[1;31morigin/task-33[m[33m, [m[1;32mtask-33[m[33m)[m Оформить чат-бота
+[33m1802c1a[m Merge pull request #37 from ElenaFl/task-32
+[33mcdc0889[m[33m ([m[1;31morigin/task-32[m[33m, [m[1;32mtask-32[m[33m)[m Удалить кнопку Delete для незалогиненых на BlogDetails.jsx
+[33mf00612d[m Merge pull request #36 from ElenaFl/task-31
+[33m281d2c0[m[33m ([m[1;31morigin/task-31[m[33m, [m[1;32mtask-31[m[33m)[m Вход через гитхаб
+[33mf67e72b[m Merge pull request #35 from ElenaFl/task-30
+[33m242a590[m[33m ([m[1;31morigin/task-30[m[33m, [m[1;32mtask-30[m[33m)[m Установить чат бота
