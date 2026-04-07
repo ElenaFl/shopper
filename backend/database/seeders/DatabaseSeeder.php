@@ -24,7 +24,6 @@ class DatabaseSeeder extends Seeder
             SmartUsersAvatarSeeder::class,
             MarkAuthorCommentsDeletedSeeder::class,
             UndoMarkAuthorCommentsDeletedSeeder::class,
-            DeleteAuthorCommentsSeeder::class
         ]);
     }
 }

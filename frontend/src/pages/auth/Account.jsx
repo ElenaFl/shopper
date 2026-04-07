@@ -4,7 +4,6 @@ import { Tabs } from "../../components/ui/Tabs/Tabs.jsx";
 import { Select } from "../../components/ui/Select/Select.jsx";
 import { Button } from "../../components/ui/Button/Button.jsx";
 import { useAuth } from "../../context/auth/useAuth.js";
-import ChatWidget from "../../components/ui/ChatWidget/ChatWidget.jsx";
 
 /**
  * Компонент Account - UI для входа и регистрации со вкладками (Tabs).

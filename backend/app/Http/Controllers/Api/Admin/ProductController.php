@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Http\Resources\AdminProductResource;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 use Intervention\Image\Facades\Image;
 use App\Http\Resources\ProductResource;
 use App\Models\Discount;
@@ -73,7 +72,6 @@ class ProductController extends Controller
                 $file->move($destination, $name);
                 $data['img'] = 'images/' . $name;
             } catch (\Throwable $e) {
-                Log::warning('Image move failed: ' . $e->getMessage());
                 }
         } elseif (isset($data['img']) && is_string($data['img']) && trim($data['img']) === '') {
             unset($data['img']);
@@ -100,7 +98,6 @@ try {
         ]);
     }
 } catch (\Throwable $e) {
-    \Log::warning('Discount create during product store failed: '.$e->getMessage());
     // don't fail product creation on discount error; optionally return warning in response
 }
 
@@ -155,7 +152,6 @@ try {
                 }
             } catch (\Throwable $e) {
                 // do not fail update if deletion fails
-                Log::warning('Failed to unlink old image: ' . $e->getMessage());
             }
         }
         // 2) If previous image was stored using storage disk (products/... or storage/...), delete from storage disk
@@ -166,7 +162,6 @@ try {
                     Storage::disk('public')->delete($old);
                 }
             } catch (\Throwable $e) {
-                Log::warning('Failed to delete old storage image: ' . $e->getMessage());
             }
         }
 
@@ -190,7 +185,6 @@ try {
                 ->save(public_path('images/' . $thumbName));
                 $data['img_thumb'] = 'images/' . $thumbName;
         } catch (\Throwable $e) {
-            Log::warning('Image move failed (update): ' . $e->getMessage());
             // do not abort update because of image move failure; remove img from $data so it won't overwrite
             if (isset($data['img'])) {
                 unset($data['img']);
@@ -228,7 +222,6 @@ try {
         Discount::where('product_id', $product->id)->delete();
     }
 } catch (\Throwable $e) {
-    \Log::warning('Discount upsert during product update failed: '.$e->getMessage());
 }
 
     return new AdminProductResource($product->load('category'));
