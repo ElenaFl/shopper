@@ -1,8 +1,7 @@
-import React, { useEffect, useContext, useState } from "react";
+import React, { useEffect, useContext } from "react";
 import { useSaved } from "../../../context/save/useSaved.js";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 import { Drawer } from "../Drawer/Drawer.jsx";
-import { useAuth } from "../../../context/auth/useAuth.js";
 import { useNavigate } from "react-router-dom";
 
 /**
@@ -23,10 +22,9 @@ export const SavedDrawer = () => {
   } = useSaved();
 
   const { addToCart } = useContext(CartContext);
-  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  // const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     const onPending = () => setOpen(true);
@@ -36,11 +34,6 @@ export const SavedDrawer = () => {
   }, [setOpen]);
 
   const localMoveToCart = async () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-
     if (!items || items.length === 0) return;
 
     for (const it of items) {
@@ -66,21 +59,6 @@ export const SavedDrawer = () => {
 
     clear();
     setOpen(false);
-  };
-
-  const handleGoToLogin = () => {
-    try {
-      sessionStorage.setItem("saved_move_to_cart_pending", "1");
-    } catch (e) {
-      // ignore
-    }
-    setShowLoginModal(false);
-    setOpen(false);
-    navigate("/account");
-  };
-
-  const handleCancelModal = () => {
-    setShowLoginModal(false);
   };
 
   return (
@@ -237,40 +215,6 @@ export const SavedDrawer = () => {
           </div>
         </div>
       </Drawer>
-
-      {showLoginModal && (
-        <div className="saved-modal-root" role="dialog" aria-modal="true">
-          <div
-            className={`saved-modal-backdrop saved-modal-overlay ${showLoginModal ? "show" : ""}`}
-            onClick={handleCancelModal}
-          />
-
-          <div
-            className={`saved-modal-card saved-modal-panel ${showLoginModal ? "show" : ""}`}
-            role="document"
-          >
-            <h3 className="text-lg font-semibold mb-2">Sign in required</h3>
-            <p className="text-sm text-gray-700 mb-4">
-              You need to sign in to move saved items to your cart. Would you
-              like to go to the login page?
-            </p>
-            <div className="saved-modal-actions">
-              <button
-                className="saved-modal-btn ghost"
-                onClick={handleCancelModal}
-              >
-                Cancel
-              </button>
-              <button
-                className="saved-modal-btn primary"
-                onClick={handleGoToLogin}
-              >
-                Go to login
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

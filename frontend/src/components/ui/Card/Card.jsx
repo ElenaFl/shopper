@@ -227,7 +227,7 @@ export const Card = React.memo((props) => {
             onClick={(e) => {
               e.stopPropagation();
               add(props.details, 1);
-              setOpen(true);
+              // setOpen(true);
             }}
             aria-label="Save product"
           >
