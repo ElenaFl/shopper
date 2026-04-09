@@ -2,10 +2,12 @@ import React, { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Counter } from "../components/ui/Counter/Counter.jsx";
 import { Tabs } from "../components/ui/Tabs/Tabs.jsx";
-import { Swiper, SwiperSlide } from "swiper/react";
-import "swiper/css";
-import "swiper/css/pagination";
-import { Pagination, Autoplay } from "swiper/modules";
+/*
+  Lazy-load Swiper:
+  - dynamically import 'swiper/react' and 'swiper/modules'
+  - dynamically import CSS ('swiper/css', 'swiper/css/pagination')
+  - until loaded, render images list fallback
+*/
 import { CartContext } from "../context/cart/CartContext.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
 import { Button } from "../components/ui/Button/Button.jsx";
@@ -39,7 +41,6 @@ export const ProductDetails = () => {
 
   // NEW: sliderItems holds "all products" for the left Swiper
   const [sliderItems, setSliderItems] = useState([]);
-  const [loadingSliderItems, setLoadingSliderItems] = useState(false);
 
   const [categoryTitle, setCategoryTitle] = useState("");
   const [activeCategory, setActiveCategory] = useState("Description");
@@ -54,14 +55,16 @@ export const ProductDetails = () => {
     isAdded: Boolean(existing),
   }));
 
-  const [rating, setRating] = useState(0);
-
   const [reviewComment, setReviewComment] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
   const [reviewName, setReviewName] = useState("");
   const [reviewEmail, setReviewEmail] = useState("");
+
+  const [loadingSliderItems, setLoadingSliderItems] = useState(false);
+  const [rating, setRating] = useState(null);
+
   const [needLoginMessage, setNeedLoginMessage] = useState("");
 
   const canSubmit = Boolean(reviewComment && reviewRating && !submittingReview);
@@ -258,6 +261,7 @@ export const ProductDetails = () => {
   const loadProduct = async (signal) => {
     setLoadingProduct(true);
     setProductError(null);
+
     try {
       const res = await fetch(`${API_BASE}/api/products/${productId}`, {
         credentials: "include",
@@ -267,15 +271,30 @@ export const ProductDetails = () => {
 
       if (!res.ok) {
         const text = await res.text().catch(() => null);
-        setProductError(
-          `Failed to load product: ${res.status} ${res.statusText} ${text || ""}`,
-        );
+        // distinguish common cases
+        if (res.status === 404) {
+          setProductError(`Product not found (404)`);
+        } else if (res.status === 401) {
+          // unauthenticated — don't treat as fatal for product loading
+          console.warn("loadProduct: unauthenticated when fetching product");
+          setProductError(null);
+        } else {
+          setProductError(
+            `Failed to load product: ${res.status} ${res.statusText} ${text || ""}`,
+          );
+        }
         return;
       }
 
       const json = await res.json().catch(() => null);
       const payload = json && json.data ? json.data : json;
       const normalized = normalizeProduct(payload);
+
+      // debug log (remove in production)
+      console.log("loadProduct: fetched payload =", payload);
+
+      // clear previous product error now that we have fresh data
+      setProductError(null);
 
       // preserve server-provided final_price and discount; do not override
       if (payload && payload.final_price != null) {
@@ -287,6 +306,7 @@ export const ProductDetails = () => {
 
       setProduct(normalized);
 
+      // optional: set rating safely if fields exist
       if (normalized.user_rating) setRating(Number(normalized.user_rating));
       else if (normalized.rating) setRating(Math.round(normalized.rating));
 
@@ -294,21 +314,23 @@ export const ProductDetails = () => {
         setCategoryTitle(normalized.category.title);
       else if (payload && payload.category_id) setCategoryTitle("");
 
-      try {
-        fetchAllForSlider().catch(() => {});
-      } catch (e) {}
-
+      // fetch related data but do not block the main flow
+      fetchAllForSlider().catch(() => {});
       try {
         const catId =
           normalized?.category_id ??
           payload?.category_id ??
           normalized?.category?.id;
-        if (catId) {
-          fetchSimilar(catId).catch(() => {});
-        }
-      } catch (e) {}
+        if (catId) fetchSimilar(catId).catch(() => {});
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
-      if (err.name === "AbortError") return;
+      if (err && err.name === "AbortError") {
+        // aborted by cleanup — ignore
+        return;
+      }
+      console.error("loadProduct error:", err);
       setProductError("Failed to load product (network error)");
     } finally {
       setLoadingProduct(false);
@@ -397,7 +419,55 @@ export const ProductDetails = () => {
   }, [productId]);
 
   // -----------------------
-  // NEW: processing state for add/update button
+  // Lazy Swiper loading state
+  // -----------------------
+  const [swiperLoaded, setSwiperLoaded] = useState(false);
+  const [SwiperComponents, setSwiperComponents] = useState({
+    Swiper: null,
+    SwiperSlide: null,
+    modules: [],
+  });
+
+  useEffect(() => {
+    // load Swiper only on this product page (deferred)
+    let mounted = true;
+    // we only start loading Swiper when the component is mounted and product is available
+    // you can change condition to e.g. when slider visible or on user interaction
+    if (!mounted) return;
+    // Start dynamic import but don't block rendering
+    (async () => {
+      try {
+        const mod = await import("swiper/react");
+        // load CSS separately
+        // dynamic import of CSS works with Vite and will create a separate CSS request
+        await Promise.all([
+          import("swiper/css"),
+          import("swiper/css/pagination"),
+          import("swiper/modules"),
+        ]);
+        const modulesMod = await import("swiper/modules");
+        const Pagination = modulesMod?.Pagination;
+        const Autoplay = modulesMod?.Autoplay;
+        if (mounted) {
+          setSwiperComponents({
+            Swiper: mod?.Swiper ?? null,
+            SwiperSlide: mod?.SwiperSlide ?? null,
+            modules: [Pagination, Autoplay].filter(Boolean),
+          });
+          setSwiperLoaded(true);
+        }
+      } catch (err) {
+        // fail silently — keep fallback UI
+        console.warn("Swiper dynamic import failed", err);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []); // load once on mount
+
+  // -----------------------
+  // add/update processing
   // -----------------------
   const [isProcessingAdd, setIsProcessingAdd] = useState(false);
 
@@ -509,6 +579,12 @@ export const ProductDetails = () => {
     }
     setSubmittingReview(true);
     setReviewError(null);
+
+    {
+      needLoginMessage && (
+        <div className="mt-3 text-red-500">{needLoginMessage}</div>
+      );
+    }
 
     try {
       await getCsrf?.();
@@ -640,73 +716,118 @@ export const ProductDetails = () => {
       <div className="flex justify-between items-center gap-x-9px mb-10">
         <div className="w-30">
           <div className="relative">
-            <Swiper
-              className="w-30 h-150 cursor-pointer absolute top-2 left-0"
-              modules={[Pagination, Autoplay]}
-              direction="vertical"
-              pagination={{ clickable: true }}
-              slidesPerView={Math.min(
-                4,
-                Array.isArray(sliderItems) && sliderItems.length > 0
-                  ? sliderItems.length
-                  : Array.isArray(product.images)
-                    ? product.images.length
-                    : 1,
-              )}
-              centeredSlides={false}
-              loop={
-                Array.isArray(sliderItems) &&
-                sliderItems.length >
-                  Math.min(
-                    4,
-                    Array.isArray(sliderItems) && sliderItems.length > 0
-                      ? sliderItems.length
-                      : Array.isArray(product.images)
-                        ? product.images.length
-                        : 1,
-                  )
-              }
-              autoplay={{ delay: 4000 }}
-              spaceBetween={10}
-              speed={600}
-              touchRatio={1}
-            >
-              {(Array.isArray(sliderItems) && sliderItems.length > 0
-                ? sliderItems
-                : Array.isArray(product.images) && product.images.length > 0
-                  ? product.images.map((img, idx) => ({
-                      id: `img-${idx}`,
-                      img,
-                      img_url: product.img_url,
-                      title: product.title,
-                    }))
-                  : [
-                      {
-                        id: product.id,
-                        img: product.img,
+            {/* Render Swiper when loaded; otherwise simple vertical list / placeholder */}
+            {swiperLoaded &&
+            SwiperComponents.Swiper &&
+            SwiperComponents.SwiperSlide ? (
+              <SwiperComponents.Swiper
+                className="w-30 h-150 cursor-pointer absolute top-2 left-0"
+                modules={SwiperComponents.modules}
+                direction="vertical"
+                pagination={{ clickable: true }}
+                slidesPerView={Math.min(
+                  4,
+                  Array.isArray(sliderItems) && sliderItems.length > 0
+                    ? sliderItems.length
+                    : Array.isArray(product.images)
+                      ? product.images.length
+                      : 1,
+                )}
+                centeredSlides={false}
+                loop={
+                  Array.isArray(sliderItems) &&
+                  sliderItems.length >
+                    Math.min(
+                      4,
+                      Array.isArray(sliderItems) && sliderItems.length > 0
+                        ? sliderItems.length
+                        : Array.isArray(product.images)
+                          ? product.images.length
+                          : 1,
+                    )
+                }
+                autoplay={{ delay: 4000 }}
+                spaceBetween={10}
+                speed={600}
+                touchRatio={1}
+              >
+                {(Array.isArray(sliderItems) && sliderItems.length > 0
+                  ? sliderItems
+                  : Array.isArray(product.images) && product.images.length > 0
+                    ? product.images.map((img, idx) => ({
+                        id: `img-${idx}`,
+                        img,
                         img_url: product.img_url,
                         title: product.title,
-                      },
-                    ]
-              ).map((item) => (
-                <SwiperSlide key={item.id}>
-                  <div
-                    className="w-30 h-30 relative cursor-pointer"
-                    onClick={() => {
-                      if (item.id && String(item.id) !== String(productId)) {
-                        navigate(`/products/${item.id}`);
-                      }
-                    }}
-                  >
-                    <img
-                      src={safeSrc(item.img, item.img_url)}
-                      alt={item.title ?? ""}
-                      className="w-full h-full rounded-sm object-cover"
-                    />
-                  </div>
-                </SwiperSlide>
-              ))}
-            </Swiper>
+                      }))
+                    : [
+                        {
+                          id: product.id,
+                          img: product.img,
+                          img_url: product.img_url,
+                          title: product.title,
+                        },
+                      ]
+                ).map((item) => (
+                  <SwiperComponents.SwiperSlide key={item.id}>
+                    <div
+                      className="w-30 h-30 relative cursor-pointer"
+                      onClick={() => {
+                        if (item.id && String(item.id) !== String(productId)) {
+                          navigate(`/products/${item.id}`);
+                        }
+                      }}
+                    >
+                      <img
+                        src={safeSrc(item.img, item.img_url)}
+                        alt={item.title ?? ""}
+                        className="w-full h-full rounded-sm object-cover"
+                      />
+                    </div>
+                  </SwiperComponents.SwiperSlide>
+                ))}
+              </SwiperComponents.Swiper>
+            ) : (
+              /* Fallback: simple vertical stack of thumbnails (no JS heavy lib) */
+              <div className="absolute top-2 left-0">
+                {(Array.isArray(sliderItems) && sliderItems.length > 0
+                  ? sliderItems
+                  : Array.isArray(product.images) && product.images.length > 0
+                    ? product.images.map((img, idx) => ({
+                        id: `img-${idx}`,
+                        img,
+                        img_url: product.img_url,
+                        title: product.title,
+                      }))
+                    : [
+                        {
+                          id: product.id,
+                          img: product.img,
+                          img_url: product.img_url,
+                          title: product.title,
+                        },
+                      ]
+                )
+                  .slice(0, 4)
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      className="w-30 h-30 mb-2 cursor-pointer"
+                      onClick={() => {
+                        if (item.id && String(item.id) !== String(productId)) {
+                          navigate(`/products/${item.id}`);
+                        }
+                      }}
+                    >
+                      <img
+                        src={safeSrc(item.img, item.img_url)}
+                        alt={item.title ?? ""}
+                        className="w-full h-full rounded-sm object-cover"
+                      />
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -989,6 +1110,11 @@ export const ProductDetails = () => {
                         className="w-full"
                         name="Log in"
                       />
+                      {needLoginMessage && (
+                        <div className="mt-3 text-red-500">
+                          {needLoginMessage}
+                        </div>
+                      )}
                     </div>
                     <span className="text-sm">Going to the account page </span>
                   </div>
@@ -1092,3 +1218,5 @@ export const ProductDetails = () => {
     </div>
   );
 };
+
+export default ProductDetails;

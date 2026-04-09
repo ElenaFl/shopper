@@ -528,3 +528,5 @@ export const Shop = () => {
     </>
   );
 };
+
+export default Shop;
