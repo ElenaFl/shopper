@@ -16,7 +16,11 @@ export const OurStory = () => {
       </p>
       <h2 className="mb-6 text-[26px]">Top trends</h2>
       <div className="w-full mb-12">
-        <img className="w-1/2 h-auto rounded-md m-auto" src="/images/i7.webp" alt="beads" />
+        <img
+          className="w-1/2 h-auto rounded-md m-auto"
+          src="/images/i7.webp"
+          alt="beads"
+        />
       </div>
       <p className="mb-10">
         Duis rutrum dictum libero quis rutrum. Etiam sed neque aliquam,
@@ -38,8 +42,14 @@ export const OurStory = () => {
         />
       </div>
       <p className="mb-4">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam placerat, augue a volutpat hendrerit, sapien tortor faucibus augue, a maximus elit ex vitae libero. Sed quis mauris eget arcu facilisis consequat sed eu felis. Nunc sed porta augue. Morbi porta tempor odio, in molestie diam bibendu.
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam
+        placerat, augue a volutpat hendrerit, sapien tortor faucibus augue, a
+        maximus elit ex vitae libero. Sed quis mauris eget arcu facilisis
+        consequat sed eu felis. Nunc sed porta augue. Morbi porta tempor odio,
+        in molestie diam bibendu.
       </p>
     </div>
   );
 };
+
+export default OurStory;

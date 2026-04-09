@@ -1,8 +1,27 @@
 import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
+import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
-  plugins: [tailwindcss()],
+  plugins: [
+    tailwindcss(),
+    visualizer({ filename: "dist/stats.html", open: false }),
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("react")) return "vendor-react";
+            if (id.includes("react-router")) return "vendor-router";
+            if (id.includes("swiper")) return "vendor-swiper";
+            return "vendor";
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
   server: {
     host: "shopper.local",
     port: 5173,

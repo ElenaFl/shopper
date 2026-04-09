@@ -297,13 +297,45 @@ export const Account = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-[#D8D8D8] text-[#707070]">
-                    <td className="py-6 text-left">text</td>
-                    <td className="py-6 text-left">text</td>
-                    <td className="py-6 text-left">text</td>
-                    <td className="py-6 text-left">text</td>
-                    <td className="py-6 text-left">text</td>
-                  </tr>
+                  {(() => {
+                    const orders = JSON.parse(
+                      localStorage.getItem("shopper_orders") || "[]",
+                    );
+                    if (!orders || orders.length === 0) {
+                      return (
+                        <tr className="border-b border-[#D8D8D8] text-[#707070]">
+                          <td className="py-6 text-left" colSpan={5}>
+                            No orders yet
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return orders.map((o) => (
+                      <tr
+                        key={o.id}
+                        className="border-b border-[#D8D8D8] text-[#707070]"
+                      >
+                        <td className="py-6 text-left">{o.number}</td>
+                        <td className="py-6 text-left">
+                          {new Date(o.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-6 text-left">Completed</td>
+                        <td className="py-6 text-left">
+                          ${(o.totals?.total || 0).toFixed(2)}
+                        </td>
+                        <td className="py-6 text-left">
+                          <button
+                            onClick={() =>
+                              (window.location.href = `/orderDetails/${o.id}`)
+                            }
+                            className="text-blue-600 underline"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -640,3 +672,5 @@ export const Account = () => {
     </div>
   );
 };
+
+export default Account;

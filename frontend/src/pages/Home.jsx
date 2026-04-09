@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { SwiperComponent } from "../components/ui/SwiperComponent/SwiperComponent.jsx";
+// const SwiperComponent = lazy(
+//   () => import("../components/ui/SwiperComponent/SwiperComponent.jsx"),
+// );
+import SwiperComponent from "../components/ui/SwiperComponent/SwiperComponent.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
 import { Search } from "../components/ui/Search/Search.jsx";
 import { useDebounce } from "../hooks/useDebounce.js";
@@ -13,7 +16,6 @@ export const Home = () => {
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState(null);
 
   const [mounted, setMounted] = useState(false);
@@ -112,7 +114,6 @@ export const Home = () => {
     }
 
     // expand: load all popular products (no per_page)
-    setLoadingAll(true);
     setError(null);
     try {
       // use sort=popular, no per_page to get all (backend default)
@@ -142,14 +143,18 @@ export const Home = () => {
     } catch (err) {
       console.error("load all error", err);
       setError("Failed to load all products");
-    } finally {
-      setLoadingAll(false);
     }
   };
 
   return (
     <>
-      <SwiperComponent />
+      <Suspense
+        fallback={
+          <div className="w-full h-48 bg-gray-100" aria-hidden="true" />
+        }
+      >
+        <SwiperComponent />
+      </Suspense>
 
       <div className="mt-16 mb-10 w-full flex justify-between items-center">
         <h2 className="text-3xl font-medium">Shop The Latest</h2>
@@ -204,3 +209,5 @@ export const Home = () => {
     </>
   );
 };
+
+export default Home;
