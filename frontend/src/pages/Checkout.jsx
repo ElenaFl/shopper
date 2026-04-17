@@ -5,7 +5,7 @@ import { CartContext } from "../context/cart/CartContext.jsx";
 import { useAuth } from "../context/auth/useAuth.js";
 import { Select } from "../components/ui/Select/Select.jsx";
 
-// helper id generator (не требует пакетов)
+// helper id generator (не требуется, но оставлен если frontend хочет передавать id)
 const genOrderId = () => `order-${Date.now()}`;
 
 export const Checkout = () => {
@@ -40,6 +40,13 @@ export const Checkout = () => {
   const [lastPaymentInfo, setLastPaymentInfo] = useState(null);
 
   useEffect(() => {
+    // Clean up any old local orders on app load
+    try {
+      localStorage.removeItem("shopper_orders");
+    } catch (e) {
+      // ignore
+    }
+
     // try load snapshot from cart page
     try {
       const snapshot = JSON.parse(
@@ -74,63 +81,37 @@ export const Checkout = () => {
     setForm((s) => ({ ...s, [key]: value }));
   };
 
+  // --- NEW submitOrder: POST to /api/orders ---
   const submitOrder = async (e) => {
     e?.preventDefault?.();
-    console.log("submitOrder start", {
-      paymentConfirmed: !!paymentConfirmed,
-      cartLength: (cart || []).length,
-    });
 
     if (!cart || cart.length === 0) {
-      console.log("submitOrder stop - cart empty");
       alert("Cart empty");
       return;
     }
     if (!paymentConfirmed) {
-      console.log("submitOrder stop - payment not confirmed");
       alert("Please confirm payment first");
       return;
     }
-    // simple validation
-    // const req = [
-    //   "first",
-    //   "last",
-    //   "street",
-    //   "postCode",
-    //   "city",
-    //   "phone",
-    //   "email",
-    // ];
-    // const newErr = {};
-    // req.forEach((k) => {
-    //   if (!form[k] || String(form[k]).trim() === "") newErr[k] = "Required";
-    // });
-    // if (Object.keys(newErr).length) {
-    //   window.scrollTo(0, 0);
-    //   return;
-    // }
-    // if (!cart || cart.length === 0) {
-    //   alert("Cart empty");
-    //   return;
-    // }
-    // if (!paymentConfirmed) {
-    //   alert("Please confirm payment first");
-    //   return;
-    // }
 
     setIsSubmitting(true);
     try {
-      // emulate backend: create order object and persist to localStorage
-      const id = genOrderId();
       const subtotal = cart.reduce(
         (s, c) => s + (Number(c.price) || 0) * (Number(c.quantity) || 0),
         0,
       );
-      const order = {
-        id,
-        number: `ORD-${String(Date.now()).slice(-6)}`,
-        created_at: new Date().toISOString(),
-        items: cart,
+
+      const payload = {
+        // optional: frontend-generated id (server may ignore or use it)
+        id: genOrderId(),
+        items: cart.map((c) => ({
+          product_id: c.id,
+          title: c.title,
+          sku: c.sku,
+          price: c.price,
+          quantity: c.quantity,
+          img: c.img,
+        })),
         totals: {
           subtotal,
           shipping: 0,
@@ -140,37 +121,62 @@ export const Checkout = () => {
         payment: lastPaymentInfo,
       };
 
-      console.log("submitOrder - order prepared", order);
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        credentials: "include", // send cookies (session)
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      const existing = JSON.parse(
-        localStorage.getItem("shopper_orders") || "[]",
-      );
-      existing.unshift(order);
-      localStorage.setItem("shopper_orders", JSON.stringify(existing));
+      if (res.status === 401) {
+        // not authenticated — redirect to account/login
+        alert("Please sign in to place order");
+        navigate("/account");
+        return;
+      }
 
-      console.log("submitOrder - saved to localStorage", id);
+      if (res.status === 422) {
+        const err = await res.json();
+        alert("Validation error: " + (err.message || "Invalid data"));
+        return;
+      }
 
-      // clear cart via context if provided
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      const created = await res.json(); // expect { id, number, ... }
+
+      // cleanup local caches and cart
+      try {
+        localStorage.removeItem("shopper_orders");
+        localStorage.removeItem("shopper_cart");
+      } catch (e) {
+        // ignore
+      }
+
       if (typeof clearCart === "function") {
         try {
           clearCart();
-          console.log("submitOrder - clearCart called");
-        } catch (err) {
-          // ignore if context doesn't support it
+        } catch (e) {
+          // ignore
         }
       }
-      console.log("submitOrder - navigating to", `/orderDetails/${id}`);
 
-      // navigate to details
-      navigate(`/orderDetails/${order.id}`);
-      console.log("submitOrder - after navigate");
+      // navigate to details page using server id
+      navigate(`/orderDetails/${created.id}`);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to create order:", err);
       alert("Failed to create order");
     } finally {
       setIsSubmitting(false);
     }
   };
+  // --- END submitOrder ---
 
   return (
     <div className="mt-55 mb-62">
@@ -225,6 +231,26 @@ export const Checkout = () => {
                 placeholder="Street Address *"
                 value={form.street}
                 onChange={(e) => updateField("street", e.target.value)}
+              />
+            </div>
+
+            <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+              <input
+                type="text"
+                name="postCode"
+                placeholder="Postcode / ZIP *"
+                value={form.postCode}
+                onChange={(e) => updateField("postCode", e.target.value)}
+              />
+            </div>
+
+            <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+              <input
+                type="text"
+                name="city"
+                placeholder="Town / City *"
+                value={form.city}
+                onChange={(e) => updateField("city", e.target.value)}
               />
             </div>
 
