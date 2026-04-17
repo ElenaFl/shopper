@@ -9,9 +9,11 @@ use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ReviewController;
-use \App\Http\Controllers\Api\Admin\ReviewAdminController;
+use App\Http\Controllers\Api\Admin\ReviewAdminController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ChatWidgetController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\SavedItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -57,7 +59,18 @@ Route::middleware('web')->group(function () {
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->middleware('auth:sanctum');
     Route::get('/products/{product}/reviews', [ReviewController::class, 'index'])->middleware('auth:sanctum');
     Route::get('reviews', [ReviewAdminController::class, 'index'])->middleware('auth:sanctum');
-    Route::delete('/products/{product}/reviews/{review}', [ReviewController::class, 'destroy'])->middleware('auth:sanctum');
+    Route::delete('/products/{product}/reviews/{review}',   [ReviewController::class, 'destroy'])->middleware('auth:sanctum');
+    // Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/orders', [OrderController::class, 'store'])->middleware('auth:sanctum');
+        Route::get('/orders', [OrderController::class, 'index'])->middleware('auth:sanctum');
+        Route::get('/orders/{id}', [OrderController::class, 'show'])->middleware('auth:sanctum');
+    // });
+
+Route::get('/user/saved-items', [SavedItemController::class, 'index'])->middleware('auth:sanctum');
+Route::post('/user/saved-items', [SavedItemController::class, 'store'])->middleware('auth:sanctum');
+Route::delete('/user/saved-items/{id}', [SavedItemController::class, 'destroy'])->middleware('auth:sanctum');
+Route::post('/user/saved-items/sync', [SavedItemController::class, 'sync'])->middleware('auth:sanctum');
+
 });
 
 

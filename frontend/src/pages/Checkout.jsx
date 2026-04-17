@@ -5,7 +5,7 @@ import { CartContext } from "../context/cart/CartContext.jsx";
 import { useAuth } from "../context/auth/useAuth.js";
 import { Select } from "../components/ui/Select/Select.jsx";
 
-// helper id generator (не требует пакетов)
+// helper id generator (не требуется, но оставлен если frontend хочет передавать id)
 const genOrderId = () => `order-${Date.now()}`;
 
 export const Checkout = () => {
@@ -38,8 +38,16 @@ export const Checkout = () => {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [lastPaymentInfo, setLastPaymentInfo] = useState(null);
+  const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
   useEffect(() => {
+    // Clean up any old local orders on app load
+    try {
+      localStorage.removeItem("shopper_orders");
+    } catch (err) {
+      console.error("Failed to remove shopper_orders from localStorage:", err);
+    }
+
     // try load snapshot from cart page
     try {
       const snapshot = JSON.parse(
@@ -53,8 +61,8 @@ export const Checkout = () => {
           postCode: snapshot.shippingAddress.postal || f.postCode,
         }));
       }
-    } catch (e) {
-      // ignore
+    } catch (err) {
+      console.error("Failed to clear local caches:", err);
     }
 
     // fill from user (account) if available
@@ -67,110 +75,106 @@ export const Checkout = () => {
         email: (user.email || f.email || "").toString(),
       }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const updateField = (key, value) => {
     setForm((s) => ({ ...s, [key]: value }));
   };
 
+  // --- NEW submitOrder: POST to /api/orders ---
+  const ensureCsrf = async () => {
+    try {
+      await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
+        credentials: "include",
+      });
+    } catch (err) {
+      // ignore network errors here; server will return 419 if CSRF unavailable
+    }
+    const raw = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "";
+    return raw ? decodeURIComponent(raw) : "";
+  };
+
   const submitOrder = async (e) => {
     e?.preventDefault?.();
-    console.log("submitOrder start", {
-      paymentConfirmed: !!paymentConfirmed,
-      cartLength: (cart || []).length,
-    });
 
     if (!cart || cart.length === 0) {
-      console.log("submitOrder stop - cart empty");
       alert("Cart empty");
       return;
     }
     if (!paymentConfirmed) {
-      console.log("submitOrder stop - payment not confirmed");
       alert("Please confirm payment first");
       return;
     }
-    // simple validation
-    // const req = [
-    //   "first",
-    //   "last",
-    //   "street",
-    //   "postCode",
-    //   "city",
-    //   "phone",
-    //   "email",
-    // ];
-    // const newErr = {};
-    // req.forEach((k) => {
-    //   if (!form[k] || String(form[k]).trim() === "") newErr[k] = "Required";
-    // });
-    // if (Object.keys(newErr).length) {
-    //   window.scrollTo(0, 0);
-    //   return;
-    // }
-    // if (!cart || cart.length === 0) {
-    //   alert("Cart empty");
-    //   return;
-    // }
-    // if (!paymentConfirmed) {
-    //   alert("Please confirm payment first");
-    //   return;
-    // }
 
     setIsSubmitting(true);
     try {
-      // emulate backend: create order object and persist to localStorage
-      const id = genOrderId();
       const subtotal = cart.reduce(
         (s, c) => s + (Number(c.price) || 0) * (Number(c.quantity) || 0),
         0,
       );
-      const order = {
-        id,
-        number: `ORD-${String(Date.now()).slice(-6)}`,
-        created_at: new Date().toISOString(),
-        items: cart,
-        totals: {
-          subtotal,
-          shipping: 0,
-          total: subtotal,
-        },
+
+      const payload = {
+        id: genOrderId(),
+        items: cart.map((c) => ({
+          product_id: c.id,
+          title: c.title,
+          sku: c.sku,
+          price: c.price,
+          quantity: c.quantity,
+          img: c.img,
+        })),
+        totals: { subtotal, shipping: 0, total: subtotal },
         billing: { ...form },
         payment: lastPaymentInfo,
       };
 
-      console.log("submitOrder - order prepared", order);
+      const xsrf = await ensureCsrf();
 
-      const existing = JSON.parse(
-        localStorage.getItem("shopper_orders") || "[]",
-      );
-      existing.unshift(order);
-      localStorage.setItem("shopper_orders", JSON.stringify(existing));
+      const res = await fetch(`${API_BASE}/api/orders`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-XSRF-TOKEN": xsrf,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      console.log("submitOrder - saved to localStorage", id);
+      if (res.status === 401) {
+        navigate("/account");
+        return;
+      }
+      if (res.status === 422) {
+        const err = await res.json().catch(() => null);
+        alert("Validation error: " + (err?.message || "Invalid data"));
+        return;
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `HTTP ${res.status}`);
+      }
 
-      // clear cart via context if provided
+      const created = await res.json();
+      try {
+        localStorage.removeItem("shopper_orders");
+        localStorage.removeItem("shopper_cart");
+      } catch (_) {}
       if (typeof clearCart === "function") {
         try {
           clearCart();
-          console.log("submitOrder - clearCart called");
-        } catch (err) {
-          // ignore if context doesn't support it
-        }
+        } catch (_) {}
       }
-      console.log("submitOrder - navigating to", `/orderDetails/${id}`);
-
-      // navigate to details
-      navigate(`/orderDetails/${order.id}`);
-      console.log("submitOrder - after navigate");
+      navigate(`/orderDetails/${created.id}`);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to create order:", err);
       alert("Failed to create order");
     } finally {
       setIsSubmitting(false);
     }
   };
+  // --- END submitOrder ---
 
   return (
     <div className="mt-55 mb-62">
@@ -225,6 +229,26 @@ export const Checkout = () => {
                 placeholder="Street Address *"
                 value={form.street}
                 onChange={(e) => updateField("street", e.target.value)}
+              />
+            </div>
+
+            <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+              <input
+                type="text"
+                name="postCode"
+                placeholder="Postcode / ZIP *"
+                value={form.postCode}
+                onChange={(e) => updateField("postCode", e.target.value)}
+              />
+            </div>
+
+            <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
+              <input
+                type="text"
+                name="city"
+                placeholder="Town / City *"
+                value={form.city}
+                onChange={(e) => updateField("city", e.target.value)}
               />
             </div>
 

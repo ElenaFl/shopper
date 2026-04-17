@@ -1,20 +1,130 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 export const OrderDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Считываем заказ синхронно из localStorage (без эффекта) — это простая и надёжная стратегия здесь
-  let order = null;
-  try {
-    const all = JSON.parse(localStorage.getItem("shopper_orders") || "[]");
-    order = all.find((o) => o.id === id) || null;
-  } catch (err) {
-    order = null;
+  // хуки объявляем сразу, чтобы порядок всегда был одинаковым
+  const [order, setOrder] = useState(null);
+  const [status, setStatus] = useState("idle"); // idle | loading | success | notfound | forbidden | unauth | error
+  const [error, setError] = useState(null);
+  const [itemsWithKeys, setItemsWithKeys] = useState([]);
+
+  useEffect(() => {
+    // если id нет — выставим notfound и ничего не запрашиваем
+    if (!id) {
+      setStatus("notfound");
+      return;
+    }
+
+    let mounted = true;
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    const load = async () => {
+      setStatus("loading");
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+          method: "GET",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+          signal,
+        });
+
+        if (!mounted) return;
+
+        if (res.status === 401) {
+          setStatus("unauth");
+          return;
+        }
+        if (res.status === 403) {
+          setStatus("forbidden");
+          return;
+        }
+        if (res.status === 404) {
+          setStatus("notfound");
+          return;
+        }
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (!mounted) return;
+        setOrder(data);
+        setStatus("success");
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        if (!mounted) return;
+        console.error("Order fetch error", err);
+        setError(err.message || "Unknown error");
+        setStatus("error");
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (status === "unauth") {
+      navigate("/account");
+    }
+  }, [status, navigate]);
+
+  useEffect(() => {
+    if (order?.items) {
+      setItemsWithKeys(
+        order.items.map((it, i) => ({
+          ...it,
+          _key: it.id ?? `${it.title}-${it.sku ?? ""}-${it.price}-${i}`,
+        })),
+      );
+    } else {
+      setItemsWithKeys([]);
+    }
+  }, [order]);
+
+  const fmt = (v) => `$${Number(v || 0).toFixed(2)}`;
+
+  // рендерим в зависимости от статуса
+  if (status === "loading" || status === "idle") {
+    return (
+      <div className="p-8">
+        <h2 className="text-2xl mb-4">Loading order…</h2>
+      </div>
+    );
   }
 
-  if (!order) {
+  if (status === "unauth") {
+    // navigate уже выполнится в эффекте, пока можно показывать заглушку
+    return null;
+  }
+
+  if (status === "forbidden") {
+    return (
+      <div className="p-8">
+        <h2 className="text-2xl mb-4">Access denied</h2>
+        <p className="text-[#707070] mb-6">
+          You don't have permission to view this order.
+        </p>
+        <button
+          onClick={() => navigate("/account#orders")}
+          className="px-4 py-2 bg-black text-white rounded"
+        >
+          Go to my orders
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "notfound") {
     return (
       <div className="p-8">
         <h2 className="text-2xl mb-4">Order not found</h2>
@@ -31,11 +141,24 @@ export const OrderDetails = () => {
     );
   }
 
-  const fmt = (v) => `$${Number(v || 0).toFixed(2)}`;
+  if (status === "error") {
+    return (
+      <div className="p-8">
+        <h2 className="text-2xl mb-4">Error loading order</h2>
+        <p className="text-[#707070] mb-6">{error}</p>
+        <button
+          onClick={() => navigate("/account#orders")}
+          className="px-4 py-2 bg-black text-white rounded"
+        >
+          Go to my orders
+        </button>
+      </div>
+    );
+  }
 
+  // status === 'success' and order exists
   return (
     <div className="mt-62 mb-62 w-full flex justify-between">
-      {/* левый блок */}
       <div className="w-145">
         <h2 className="text-[26px] mb-7">Order Details</h2>
 
@@ -60,7 +183,9 @@ export const OrderDetails = () => {
 
             <h3 className="mb-2">ORDER DATE</h3>
             <p className="text-[#707070] mb-10">
-              {new Date(order.created_at).toLocaleString()}
+              {order.created_at
+                ? new Date(order.created_at).toLocaleString()
+                : "-"}
             </p>
           </div>
 
@@ -93,7 +218,6 @@ export const OrderDetails = () => {
         </div>
       </div>
 
-      {/* правый блок */}
       <div className="w-145">
         <h2 className="text-[26px] mb-7">ORDER Summary</h2>
 
@@ -108,8 +232,8 @@ export const OrderDetails = () => {
 
             <tbody className="text-[#707070]">
               {order.items && order.items.length ? (
-                order.items.map((it) => (
-                  <tr key={it.id || `${it.title}-${Math.random()}`}>
+                itemsWithKeys.map((it) => (
+                  <tr key={it._key}>
                     <td className="pt-4 pb-3 text-start">
                       {it.title}
                       {it.quantity > 1 ? ` × ${it.quantity}` : ""}

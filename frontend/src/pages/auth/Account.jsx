@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Tabs } from "../../components/ui/Tabs/Tabs.jsx";
 import { Select } from "../../components/ui/Select/Select.jsx";
@@ -86,6 +86,39 @@ export const Account = () => {
       return true;
     }
     return false;
+  };
+
+  const [orders, setOrders] = useState(null);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      await getCsrf(); // ensure XSRF cookie — optional
+      // if already done
+      const res = await fetch(`${BACKEND}/api/orders`, {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "X-XSRF-TOKEN": getCookie("XSRF-TOKEN"),
+        },
+      });
+      if (res.status === 401) {
+        await fetchUser();
+        setOrders([]);
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to load orders");
+      const json = await res.json();
+      // json is paginated: use json.data array
+      const list = Array.isArray(json.data) ? json.data : json;
+      setOrders(list);
+    } catch (err) {
+      console.error("Load orders failed", err);
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
   };
 
   // логика входа
@@ -202,6 +235,13 @@ export const Account = () => {
     }
   };
 
+  useEffect(() => {
+    if (activeDashboard === "Orders") {
+      loadOrders();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDashboard]);
+
   return (
     <div className="my-62 mb-72">
       <div className="max-w-125 mx-auto">
@@ -286,58 +326,61 @@ export const Account = () => {
 
           {activeDashboard === "Orders" && (
             <div className="mt-10 mb-50">
-              <table className="w-full">
-                <thead>
-                  <tr className="pb-4 border-b">
-                    <th className="pb-4 pr-35 text-left">ORDER NUMBER</th>
-                    <th className="pb-4 pr-35 text-left">DATE</th>
-                    <th className="pb-4 pr-35 text-left">STATUS</th>
-                    <th className="pb-4 pr-35 text-left">TOTAL</th>
-                    <th className="pb-4 pr-35 text-left">ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const orders = JSON.parse(
-                      localStorage.getItem("shopper_orders") || "[]",
-                    );
-                    if (!orders || orders.length === 0) {
-                      return (
-                        <tr className="border-b border-[#D8D8D8] text-[#707070]">
-                          <td className="py-6 text-left" colSpan={5}>
-                            No orders yet
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return orders.map((o) => (
+              {" "}
+              {ordersLoading ? (
+                <div>Loading orders…</div>
+              ) : !orders || orders.length === 0 ? (
+                <div className="text-[#707070]">No orders yet</div>
+              ) : (
+                <table className="w-full">
+                  {" "}
+                  <thead>
+                    {" "}
+                    <tr className="pb-4 border-b">
+                      {" "}
+                      <th className="pb-4 pr-35 text-left">
+                        ORDER NUMBER
+                      </th>{" "}
+                      <th className="pb-4 pr-35 text-left">DATE</th>{" "}
+                      <th className="pb-4 pr-35 text-left">STATUS</th>{" "}
+                      <th className="pb-4 pr-35 text-left">TOTAL</th>{" "}
+                      <th className="pb-4 pr-35 text-left">ACTIONS</th>{" "}
+                    </tr>{" "}
+                  </thead>{" "}
+                  <tbody>
+                    {" "}
+                    {orders.map((o) => (
                       <tr
                         key={o.id}
                         className="border-b border-[#D8D8D8] text-[#707070]"
                       >
-                        <td className="py-6 text-left">{o.number}</td>
+                        {" "}
+                        <td className="py-6 text-left">{o.number}</td>{" "}
                         <td className="py-6 text-left">
-                          {new Date(o.created_at).toLocaleString()}
-                        </td>
-                        <td className="py-6 text-left">Completed</td>
+                          {" "}
+                          {o.created_at
+                            ? new Date(o.created_at).toLocaleString()
+                            : "-"}{" "}
+                        </td>{" "}
+                        <td className="py-6 text-left">{o.status}</td>{" "}
                         <td className="py-6 text-left">
-                          ${(o.totals?.total || 0).toFixed(2)}
-                        </td>
+                          ${((o.totals && o.totals.total) || 0).toFixed(2)}
+                        </td>{" "}
                         <td className="py-6 text-left">
+                          {" "}
                           <button
-                            onClick={() =>
-                              (window.location.href = `/orderDetails/${o.id}`)
-                            }
+                            onClick={() => navigate(`/orderDetails/${o.id}`)}
                             className="text-blue-600 underline"
                           >
-                            View
-                          </button>
-                        </td>
+                            {" "}
+                            View{" "}
+                          </button>{" "}
+                        </td>{" "}
                       </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
+                    ))}{" "}
+                  </tbody>{" "}
+                </table>
+              )}{" "}
             </div>
           )}
 

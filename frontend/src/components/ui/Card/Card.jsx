@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { Link } from "react-router-dom";
 import { useSaved } from "../../../context/save/useSaved.js";
+import { useSavedItems } from "../../../hooks/useSavedItems";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 
 /**
@@ -29,8 +30,8 @@ const formatMoney = (value, currencyLabel) => {
         maximumFractionDigits: 2,
       }).format(n);
     }
-  } catch (e) {
-    // fallback
+  } catch (err) {
+    console.warn("formatMoney: failed to format currency, fallback used", err);
   }
   return n.toFixed(2) + (currencyLabel ? " " + currencyLabel : "");
 };
@@ -91,7 +92,12 @@ function normalizeDiscount(raw) {
 }
 
 export const Card = React.memo((props) => {
-  const { id, title, currency, price, img } = props.details || {};
+  const id = props.details?.id ?? props.details?.product_id ?? null;
+  const title = props.details?.title ?? props.details?.name ?? "";
+  const currency =
+    props.details?.currency ?? props.details?.currency_code ?? null;
+  const price = props.details?.price ?? props.details?.price_amount ?? null;
+  const img = props.details?.img ?? props.details?.img_url ?? null;
   const rawDiscount =
     props.details?.discount ?? props.details?.discounts ?? null;
 
@@ -100,9 +106,10 @@ export const Card = React.memo((props) => {
 
   const { width, height, heightImg } = props.size || {};
   const { className = "", style = {}, onOpenDetails } = props;
-
-  const { isSaved, setOpen, add } = useSaved();
-  const savedActive = isSaved(id);
+  const { add } = useSaved();
+  const { items, save, remove, load } = useSavedItems({ user: props.user });
+  const savedEntry = items.find((s) => String(s.product_id) === String(id));
+  const savedActive = Boolean(savedEntry);
 
   // get cart functions
   const { addToCart } = useContext(CartContext);
@@ -224,14 +231,42 @@ export const Card = React.memo((props) => {
           <button
             type="button"
             className="btn"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              add(props.details, 1);
-              // setOpen(true);
+              try {
+                if (!id) {
+                  alert("Нет продукта");
+                  return;
+                }
+                if (savedActive) {
+                  await remove({
+                    savedId: savedEntry?.id ?? null,
+                    productId: id,
+                  });
+                  await load();
+                  console.log(
+                    "Card after load - id:",
+                    id,
+                    "savedEntry:",
+                    items.find((s) => String(s.product_id) === String(id)),
+                    "items_len:",
+                    items.length,
+                  );
+                } else {
+                  await save(id);
+                  if (typeof add === "function") add(props.details, 1);
+                }
+              } catch (err) {
+                console.error("save toggle error", err);
+                alert(err?.message || "Error saving item");
+              }
             }}
-            aria-label="Save product"
+            aria-label={savedActive ? "Unsave product" : "Save product"}
           >
-            <img src={"/images/heart.svg"} alt="heart" />
+            <img
+              src={savedActive ? "/images/heard-fill.svg" : "/images/heart.svg"}
+              alt="heart"
+            />
           </button>
         </div>
       </div>
