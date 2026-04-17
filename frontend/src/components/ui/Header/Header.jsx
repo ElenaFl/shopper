@@ -10,7 +10,12 @@ export const Header = () => {
   const { user, checking } = useAuth();
   const navigate = useNavigate();
 
-  const { open, setOpen, count: savedCount } = useSaved();
+  const { items, open, setOpen } = useSaved();
+
+  React.useEffect(() => {
+    console.log("Header sees items:", items);
+  }, [items]);
+  const savedCount = Array.isArray(items) ? items.length : 0;
 
   // get cart from context and compute total quantity
   const { cart } = useContext(CartContext);

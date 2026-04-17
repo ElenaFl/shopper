@@ -17,11 +17,19 @@ export const SavedDrawer = () => {
     remove,
     increase,
     decrease,
-    count,
     total,
     clear,
     loading,
   } = useSaved();
+
+  console.log(
+    "SavedDrawer items:",
+    items,
+    "localCount:",
+    Array.isArray(items) ? items.length : 0,
+  );
+
+  const localCount = Array.isArray(items) ? items.length : 0;
 
   const { user } = useAuth();
   const { remove: removeServer } = useSavedItems({ user });
@@ -138,6 +146,12 @@ export const SavedDrawer = () => {
             className="p-4 overflow-auto"
             style={{ maxHeight: "calc(100% - 140px)" }}
           >
+            <div
+              id="debug-drawer-items"
+              style={{ background: "cyan", padding: 6 }}
+            >
+              debug items: {Array.isArray(items) ? items.length : 0}
+            </div>
             {items.length === 0 ? (
               <div className="text-sm text-gray-500">No saved products</div>
             ) : (
@@ -174,14 +188,22 @@ export const SavedDrawer = () => {
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => decrease(it.id, 1)}
+                        onClick={() =>
+                          typeof decrease === "function"
+                            ? decrease(it.id, 1)
+                            : null
+                        }
                         className="px-2"
                       >
                         −
                       </button>
                       <div className="px-2">{it.qty ?? 1}</div>
                       <button
-                        onClick={() => increase(it.id, 1)}
+                        onClick={() =>
+                          typeof increase === "function"
+                            ? increase(it.id, 1)
+                            : null
+                        }
                         className="px-2"
                       >
                         +
@@ -268,7 +290,7 @@ export const SavedDrawer = () => {
 
           <div className="p-4 border-t">
             <div className="flex justify-between mb-3">
-              <div>{count} products</div>
+              <div>{localCount} products</div>
               <div className="font-semibold">
                 {Number(total || 0).toFixed(2)}
               </div>
