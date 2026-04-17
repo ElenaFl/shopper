@@ -1,6 +1,5 @@
 import React, { useContext } from "react";
 import { Link } from "react-router-dom";
-import { useSaved } from "../../../context/save/useSaved.js";
 import { useSavedItems } from "../../../hooks/useSavedItems";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 
@@ -106,8 +105,8 @@ export const Card = React.memo((props) => {
 
   const { width, height, heightImg } = props.size || {};
   const { className = "", style = {}, onOpenDetails } = props;
-  const { add } = useSaved();
-  const { items, save, remove, load } = useSavedItems({ user: props.user });
+  const { add } = useSavedItems();
+  const { items, save, remove } = useSavedItems({ user: props.user });
   const savedEntry = items.find((s) => String(s.product_id) === String(id));
   const savedActive = Boolean(savedEntry);
 
@@ -243,15 +242,6 @@ export const Card = React.memo((props) => {
                     savedId: savedEntry?.id ?? null,
                     productId: id,
                   });
-                  await load();
-                  console.log(
-                    "Card after load - id:",
-                    id,
-                    "savedEntry:",
-                    items.find((s) => String(s.product_id) === String(id)),
-                    "items_len:",
-                    items.length,
-                  );
                 } else {
                   await save(id);
                   if (typeof add === "function") add(props.details, 1);
