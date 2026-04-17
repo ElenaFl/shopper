@@ -3,6 +3,8 @@ import { useSaved } from "../../../context/save/useSaved.js";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 import { Drawer } from "../Drawer/Drawer.jsx";
 import { useNavigate } from "react-router-dom";
+import { useSavedItems } from "../../../hooks/useSavedItems";
+import { useAuth } from "../../../context/auth/useAuth";
 
 /**
  SavedDrawer with login-confirm modal (with subtle animation)
@@ -20,6 +22,9 @@ export const SavedDrawer = () => {
     clear,
     loading,
   } = useSaved();
+
+  const { user } = useAuth();
+  const { remove: removeServer } = useSavedItems({ user });
 
   const { addToCart } = useContext(CartContext);
   const navigate = useNavigate();
@@ -187,7 +192,70 @@ export const SavedDrawer = () => {
                       </div>
                       <button
                         className="text-gray-500 px-2"
-                        onClick={() => remove(it.id)}
+                        onClick={async () => {
+                          try {
+                            const isServerId = Number.isFinite(Number(it.id));
+                            if (isServerId) {
+                              await removeServer({
+                                savedId: it.id,
+                                productId:
+                                  it.product?.id ?? it.product_id ?? null,
+                              });
+                            } else {
+                              const pid =
+                                it.product?.id ?? it.product_id ?? null;
+                              if (pid != null) {
+                                try {
+                                  const API_BASE =
+                                    import.meta.env.VITE_API_BASE ||
+                                    "http://shopper.local";
+                                  await fetch(
+                                    `${API_BASE}/sanctum/csrf-cookie`,
+                                    { credentials: "include" },
+                                  ).catch(() => {});
+                                  const q = new URLSearchParams({
+                                    product_id: String(pid),
+                                  });
+                                  const res = await fetch(
+                                    `${API_BASE}/api/user/saved-items?${q.toString()}`,
+                                    {
+                                      credentials: "include",
+                                      headers: { Accept: "application/json" },
+                                    },
+                                  );
+                                  if (res.ok) {
+                                    const json = await res
+                                      .json()
+                                      .catch(() => ({ data: [] }));
+                                    const list = Array.isArray(json.data)
+                                      ? json.data
+                                      : Array.isArray(json)
+                                        ? json
+                                        : [];
+                                    if (list && list.length > 0) {
+                                      for (const si of list) {
+                                        if (si?.id) {
+                                          await removeServer({
+                                            savedId: si.id,
+                                            productId: pid,
+                                          });
+                                        }
+                                      }
+                                    }
+                                  }
+                                } catch (errInner) {
+                                  console.error(
+                                    "find/delete server saved-item failed",
+                                    errInner,
+                                  );
+                                }
+                              }
+                            }
+                          } catch (err) {
+                            console.error("server remove failed", err);
+                          }
+                          remove(it.id);
+                        }}
                       >
                         ✕
                       </button>

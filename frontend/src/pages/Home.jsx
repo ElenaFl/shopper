@@ -7,12 +7,15 @@ import SwiperComponent from "../components/ui/SwiperComponent/SwiperComponent.js
 import { Card } from "../components/ui/Card/Card.jsx";
 import { Search } from "../components/ui/Search/Search.jsx";
 import { useDebounce } from "../hooks/useDebounce.js";
+import { useAuth } from "../context/auth/useAuth";
 
 const showAllTerms = ["all categories", "all", "все категории", "все"];
 
 export const Home = () => {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 750);
+
+  const { user } = useAuth();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -195,6 +198,7 @@ export const Home = () => {
             >
               <Card
                 details={product}
+                user={user}
                 onOpenDetails={() => navigate(`/products/${product.id}`)}
                 size={{ width: 380, height: 472, heightImg: 380 }}
               />

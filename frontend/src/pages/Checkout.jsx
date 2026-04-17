@@ -38,13 +38,14 @@ export const Checkout = () => {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [lastPaymentInfo, setLastPaymentInfo] = useState(null);
+  const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
   useEffect(() => {
     // Clean up any old local orders on app load
     try {
       localStorage.removeItem("shopper_orders");
-    } catch (e) {
-      // ignore
+    } catch (err) {
+      console.error("Failed to remove shopper_orders from localStorage:", err);
     }
 
     // try load snapshot from cart page
@@ -60,8 +61,8 @@ export const Checkout = () => {
           postCode: snapshot.shippingAddress.postal || f.postCode,
         }));
       }
-    } catch (e) {
-      // ignore
+    } catch (err) {
+      console.error("Failed to clear local caches:", err);
     }
 
     // fill from user (account) if available
@@ -74,7 +75,6 @@ export const Checkout = () => {
         email: (user.email || f.email || "").toString(),
       }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const updateField = (key, value) => {
@@ -82,6 +82,18 @@ export const Checkout = () => {
   };
 
   // --- NEW submitOrder: POST to /api/orders ---
+  const ensureCsrf = async () => {
+    try {
+      await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
+        credentials: "include",
+      });
+    } catch (err) {
+      // ignore network errors here; server will return 419 if CSRF unavailable
+    }
+    const raw = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "";
+    return raw ? decodeURIComponent(raw) : "";
+  };
+
   const submitOrder = async (e) => {
     e?.preventDefault?.();
 
@@ -102,7 +114,6 @@ export const Checkout = () => {
       );
 
       const payload = {
-        // optional: frontend-generated id (server may ignore or use it)
         id: genOrderId(),
         items: cart.map((c) => ({
           product_id: c.id,
@@ -112,62 +123,49 @@ export const Checkout = () => {
           quantity: c.quantity,
           img: c.img,
         })),
-        totals: {
-          subtotal,
-          shipping: 0,
-          total: subtotal,
-        },
+        totals: { subtotal, shipping: 0, total: subtotal },
         billing: { ...form },
         payment: lastPaymentInfo,
       };
 
-      const res = await fetch("/api/orders", {
+      const xsrf = await ensureCsrf();
+
+      const res = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
-        credentials: "include", // send cookies (session)
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          "X-XSRF-TOKEN": xsrf,
+          "X-Requested-With": "XMLHttpRequest",
         },
         body: JSON.stringify(payload),
       });
 
       if (res.status === 401) {
-        // not authenticated — redirect to account/login
-        alert("Please sign in to place order");
         navigate("/account");
         return;
       }
-
       if (res.status === 422) {
-        const err = await res.json();
-        alert("Validation error: " + (err.message || "Invalid data"));
+        const err = await res.json().catch(() => null);
+        alert("Validation error: " + (err?.message || "Invalid data"));
         return;
       }
-
       if (!res.ok) {
-        const text = await res.text();
+        const text = await res.text().catch(() => "");
         throw new Error(text || `HTTP ${res.status}`);
       }
 
-      const created = await res.json(); // expect { id, number, ... }
-
-      // cleanup local caches and cart
+      const created = await res.json();
       try {
         localStorage.removeItem("shopper_orders");
         localStorage.removeItem("shopper_cart");
-      } catch (e) {
-        // ignore
-      }
-
+      } catch (_) {}
       if (typeof clearCart === "function") {
         try {
           clearCart();
-        } catch (e) {
-          // ignore
-        }
+        } catch (_) {}
       }
-
-      // navigate to details page using server id
       navigate(`/orderDetails/${created.id}`);
     } catch (err) {
       console.error("Failed to create order:", err);
