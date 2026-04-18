@@ -2,6 +2,8 @@ import React, { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Counter } from "../components/ui/Counter/Counter.jsx";
 import { Tabs } from "../components/ui/Tabs/Tabs.jsx";
+import { useSavedItems } from "../hooks/useSavedItems.js";
+
 /*
   Lazy-load Swiper:
   - dynamically import 'swiper/react' and 'swiper/modules'
@@ -82,6 +84,17 @@ export const ProductDetails = () => {
 
   // transient id of review that was just created — used to show sparkle once
   const [recentlyCreatedReviewId, setRecentlyCreatedReviewId] = useState(null);
+
+  const { items: savedItems = [], save, remove } = useSavedItems();
+
+  const isSaved = React.useMemo(() => {
+    if (!productId) return false;
+    return (savedItems || []).some(
+      (s) => String(s.product_id ?? s.product?.id) === String(productId),
+    );
+  }, [savedItems, productId]);
+
+  const [savingToggle, setSavingToggle] = React.useState(false);
 
   function persistHighlightedReviews(setObj) {
     try {
@@ -916,11 +929,37 @@ export const ProductDetails = () => {
             </div>
 
             <div className="w-60 h-4.5 mb-9 flex justify-between items-center ">
-              <img
-                src="/images/heart.svg"
-                alt="heart"
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!productId || !product) return;
+                  setSavingToggle(true);
+                  try {
+                    if (isSaved) {
+                      const entry = (savedItems || []).find(
+                        (s) =>
+                          String(s.product_id ?? s.product?.id) ===
+                          String(productId),
+                      );
+                      await remove({ savedId: entry?.id ?? null, productId });
+                    } else {
+                      await save(productId, product);
+                    }
+                  } catch (err) {
+                    console.error("toggle save error", err);
+                  } finally {
+                    setSavingToggle(false);
+                  }
+                }}
+                aria-pressed={isSaved}
+                disabled={savingToggle}
                 className="cursor-pointer"
-              />
+              >
+                <img
+                  src={isSaved ? "/images/heard-fill.svg" : "/images/heart.svg"}
+                  alt={isSaved ? "Unsave" : "Save"}
+                />{" "}
+              </button>
               <div>|</div>
               <img
                 src="/images/instagram.svg"

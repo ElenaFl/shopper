@@ -113,33 +113,36 @@ export const Card = React.memo((props) => {
   // get cart functions
   const { addToCart } = useContext(CartContext);
 
+  // unified helpers
   const parsePrice = (v) =>
     v === null || v === undefined || v === "" ? null : Number(String(v).trim());
 
   const origPrice = parsePrice(price);
 
-  // Prefer server final_price (authoritative). Fallback to discount.price_after or client calc (display only)
+  // Prefer server final_price (authoritative) or discount.price_after for display.
+  // Fallback to discount percent/fixed calculation using origPrice, then finally to snapshot/unit.
   const serverFinalRaw = props.details?.final_price ?? null;
   const serverFinal =
     serverFinalRaw != null && !Number.isNaN(Number(serverFinalRaw))
       ? Number(serverFinalRaw)
       : null;
 
-  let priceAfter = null;
-  if (serverFinal != null) {
-    priceAfter = serverFinal;
+  // discount already normalized above: may have { type, value, price_after }
+  let priceAfterForDisplay = null;
+  if (serverFinal != null && Number.isFinite(serverFinal)) {
+    priceAfterForDisplay = serverFinal;
   } else if (
     discount?.price_after != null &&
     Number.isFinite(Number(discount.price_after))
   ) {
-    priceAfter = Number(discount.price_after);
+    priceAfterForDisplay = Number(discount.price_after);
   } else if (
     discount?.type === "percent" &&
     discount?.value != null &&
     !Number.isNaN(Number(discount.value)) &&
     origPrice != null
   ) {
-    priceAfter = Math.max(
+    priceAfterForDisplay = Math.max(
       0,
       Number((origPrice * (1 - Number(discount.value) / 100)).toFixed(2)),
     );
@@ -148,14 +151,27 @@ export const Card = React.memo((props) => {
     discount?.value != null &&
     origPrice != null
   ) {
-    priceAfter = Math.max(
+    priceAfterForDisplay = Math.max(
       0,
       Number((origPrice - Number(discount.value)).toFixed(2)),
     );
   } else {
-    priceAfter = origPrice;
+    // fallback: use snapshot/unit if available, otherwise origPrice
+    const getUnitPrice = (it = {}) => {
+      const rawAfter =
+        it?.price_after ?? it?.product?.price_after ?? it?.priceAfter ?? null;
+      if (rawAfter != null && Number.isFinite(Number(rawAfter)))
+        return Number(rawAfter);
+      const raw = it?.price ?? it?.product?.price ?? it?.price_amount ?? null;
+      return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null;
+    };
+    const snapshotSource = savedEntry ?? props.details;
+    const unit = getUnitPrice(snapshotSource);
+    priceAfterForDisplay = unit != null ? unit : origPrice;
   }
 
+  // final flags for rendering
+  const priceAfter = priceAfterForDisplay;
   const hasDiscount =
     Number.isFinite(Number(origPrice)) &&
     Number.isFinite(Number(priceAfter)) &&
@@ -165,21 +181,30 @@ export const Card = React.memo((props) => {
     if (discount && discount.type === "percent" && discount.value != null) {
       return `-${Math.round(Number(discount.value))}%`;
     }
-    // fallback compute if server didn't provide percent
     return computeDisplayPercent(origPrice, priceAfter);
   })();
 
   const imgSrc = safeSrc(img, props.details?.img_url);
 
-  // handler: add product to cart using final price
+  // handler: add product to cart using unified unit price from snapshot (keep current behavior)
+  const getUnitPriceForCart = (it = {}) => {
+    const rawAfter = it?.price_after ?? it?.product?.price_after ?? null;
+    if (rawAfter != null && Number.isFinite(Number(rawAfter)))
+      return Number(rawAfter);
+    const raw = it?.price ?? it?.product?.price ?? it?.price_amount ?? null;
+    return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : 0;
+  };
+
+  const snapshotSourceForCart = savedEntry ?? props.details;
+  const unitForCart = getUnitPriceForCart(snapshotSourceForCart);
+
   const handleAddToCartClick = (e) => {
     e?.stopPropagation();
     const product = props.details || {};
     const cartItem = {
       id: Number(product.id ?? product.product_id),
       title: product.title ?? product.name ?? "",
-      price:
-        priceAfter != null ? Number(priceAfter) : Number(product.price ?? 0),
+      price: Number(unitForCart),
       img: product.img ?? product.img_url ?? null,
       quantity: 1,
       sku: product.sku ?? product.SKU ?? null,
@@ -243,7 +268,8 @@ export const Card = React.memo((props) => {
                     productId: id,
                   });
                 } else {
-                  await save(id);
+                  // pass product snapshot so guest saves include price/img
+                  await save(id, props.details);
                   if (typeof add === "function") add(props.details, 1);
                 }
               } catch (err) {
@@ -256,7 +282,7 @@ export const Card = React.memo((props) => {
             <img
               src={savedActive ? "/images/heard-fill.svg" : "/images/heart.svg"}
               alt="heart"
-            />
+            />{" "}
           </button>
         </div>
       </div>
