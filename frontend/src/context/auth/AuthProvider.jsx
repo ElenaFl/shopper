@@ -21,6 +21,10 @@ export const AuthProvider = ({ children }) => {
     cartCtx && typeof cartCtx.deleteAllServerCartForUser === "function"
       ? cartCtx.deleteAllServerCartForUser
       : null;
+  const syncGuestToServer =
+    cartCtx && typeof cartCtx.syncGuestToServer === "function"
+      ? cartCtx.syncGuestToServer
+      : null;
 
   const syncCalledRef = useRef(false);
 
@@ -114,18 +118,6 @@ export const AuthProvider = ({ children }) => {
     if (!res.ok) await handleResponseErrors(res);
     const serverUser = await fetchUser();
 
-    // After login, load server cart and set it as current cart (do not auto-merge guest cart)
-    try {
-      if (typeof fetchServerCart === "function") {
-        const serverCart = await fetchServerCart();
-        window.dispatchEvent(
-          new CustomEvent("cart:setFromServer", { detail: { serverCart } }),
-        );
-      }
-    } catch (e) {
-      console.warn("login: failed to load server cart", e);
-    }
-
     // mark merge pending only if guest cart exists
     try {
       const raw = localStorage.getItem("shopper_cart");
@@ -133,7 +125,9 @@ export const AuthProvider = ({ children }) => {
         sessionStorage.setItem("shopper_merge_pending", "1");
         window.dispatchEvent(new CustomEvent("cart:mergePending"));
       }
-    } catch (e) {}
+    } catch (e) {
+      // ignore
+    }
 
     return serverUser;
   };
@@ -222,28 +216,51 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (!user) return;
-    if (typeof fetchServerCart !== "function") {
-      console.debug("AuthProvider: fetchServerCart not available");
+    // Prevent double invocation (e.g. React StrictMode or duplicate effects)
+    if (syncCalledRef.current) {
+      console.log("AuthProvider: sync already running, skipping duplicate");
       return;
     }
+    syncCalledRef.current = true;
+
     (async () => {
       try {
-        console.log(
-          "AuthProvider: fetching server cart for user",
-          user.id ?? user,
-        );
-        const serverCart = await fetchServerCart();
-        console.log("AuthProvider: serverCart fetched", serverCart);
-        window.dispatchEvent(
-          new CustomEvent("cart:setFromServer", { detail: { serverCart } }),
-        );
+        // Try to sync guest cart first (if CartContext provides syncGuestToServer)
+        if (typeof syncGuestToServer === "function") {
+          try {
+            console.log("AuthProvider: calling syncGuestToServer");
+            const synced = await syncGuestToServer();
+            console.log("AuthProvider: syncGuestToServer result =", synced);
+            if (synced) {
+              window.dispatchEvent(new CustomEvent("cart:merged"));
+            }
+          } catch (e) {
+            console.warn("AuthProvider: syncGuestToServer failed", e);
+          }
+        }
+
+        // Then always try to fetch the fresh server cart and apply it
+        if (typeof fetchServerCart === "function") {
+          try {
+            const serverCart = await fetchServerCart();
+            window.dispatchEvent(
+              new CustomEvent("cart:setFromServer", { detail: { serverCart } }),
+            );
+          } catch (e) {
+            console.warn("AuthProvider: fetchServerCart failed", e);
+          }
+        }
       } catch (e) {
-        console.warn("AuthProvider: failed to fetch server cart", e);
+        console.warn("AuthProvider: cart sync flow failed", e);
+      } finally {
+        // Allow subsequent syncs after a short cooldown (in case needed)
+        setTimeout(() => {
+          syncCalledRef.current = false;
+        }, 1500);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
-
   return (
     <AuthContext.Provider
       value={{

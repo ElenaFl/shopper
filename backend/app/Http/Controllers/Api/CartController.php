@@ -8,6 +8,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CartController extends Controller
 {
@@ -33,7 +34,7 @@ class CartController extends Controller
         ]);
 
         $productId = (int) $data['product_id'];
-        $quantity = $data['quantity'] ?? 1;
+        $incomingQty = isset($data['quantity']) ? (int)$data['quantity'] : 1;
 
         $incomingSnapshot = $data['snapshot'] ?? null;
         $snapshot = $this->normalizeSnapshot($incomingSnapshot);
@@ -49,16 +50,33 @@ class CartController extends Controller
             $snapshot = $this->enrichSnapshotFromProduct($snapshot, $product, $unitPrice);
         }
 
-        $item = CartItem::updateOrCreate(
-            ['user_id' => $user->id, 'product_id' => $productId],
-            [
-                'quantity' => $quantity,
+        // Try to find existing item
+        $item = CartItem::where('user_id', $user->id)
+            ->where('product_id', $productId)
+            ->first();
+
+        if ($item) {
+            // Increment quantity (do not overwrite)
+            $newQuantity = max(0, (int)$item->quantity + $incomingQty);
+            $item->quantity = $newQuantity;
+            // Update metadata (unit_price/snapshot/title/sku) if needed
+            $item->unit_price = $unitPrice;
+            $item->snapshot = $snapshot;
+            $item->title = $snapshot['title'] ?? $product->title ?? $item->title;
+            $item->sku = $snapshot['sku'] ?? $product->sku ?? $item->sku;
+            $item->save();
+        } else {
+            // create new
+            $item = CartItem::create([
+                'user_id' => $user->id,
+                'product_id' => $productId,
+                'quantity' => $incomingQty,
                 'unit_price' => $unitPrice,
                 'snapshot' => $snapshot,
-                'title' => $snapshot['title'] ?? $product->title ?? null,
-                'sku' => $snapshot['sku'] ?? $product->sku ?? null,
-            ]
-        );
+                'title' => $snapshot['title'] ?? ($product->title ?? null),
+                'sku' => $snapshot['sku'] ?? ($product->sku ?? null),
+            ]);
+        }
 
         return response()->json(['data' => $item], 201);
     }
@@ -140,8 +158,36 @@ class CartController extends Controller
             return response()->json(['data' => $items]);
         }
 
+        // --- normalize/group incoming items by product_id to avoid duplicates ---
+        $grouped = [];
+        foreach ($incoming as $it) {
+            $pid = isset($it['product_id']) ? (int)$it['product_id'] : null;
+            if (!$pid) continue;
+            $qty = isset($it['quantity']) ? (int)$it['quantity'] : 1;
+            $unit_price = $it['unit_price'] ?? null;
+            $snapshot = $it['snapshot'] ?? null;
+
+            if (!isset($grouped[$pid])) {
+                $grouped[$pid] = [
+                    'product_id' => $pid,
+                    'quantity' => $qty,
+                    'unit_price' => $unit_price,
+                    'snapshot' => $snapshot,
+                ];
+            } else {
+                $grouped[$pid]['quantity'] += $qty;
+                if ($grouped[$pid]['unit_price'] === null && $unit_price !== null) {
+                    $grouped[$pid]['unit_price'] = $unit_price;
+                }
+                if (empty($grouped[$pid]['snapshot']) && !empty($snapshot)) {
+                    $grouped[$pid]['snapshot'] = $snapshot;
+                }
+            }
+        }
+        $incoming = array_values($grouped);
+
         $productIds = array_values(array_unique(array_filter(array_map(function ($it) {
-            return isset($it['product_id']) ? (int) $it['product_id'] : null;
+            return isset($it['product_id']) ? (int)$it['product_id'] : null;
         }, $incoming))));
 
         $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
@@ -165,16 +211,30 @@ class CartController extends Controller
                     $snapshot = $this->enrichSnapshotFromProduct($snapshot, $product, $unitPrice);
                 }
 
-                CartItem::updateOrCreate(
-                    ['user_id' => $user->id, 'product_id' => $productId],
-                    [
+                // Merge (sum) policy
+                $existing = CartItem::where('user_id', $user->id)
+                    ->where('product_id', $productId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existing) {
+                    $existing->quantity = max(0, (int)$existing->quantity + (int)$quantity);
+                    $existing->unit_price = $unitPrice;
+                    $existing->snapshot = $snapshot;
+                    $existing->title = $snapshot['title'] ?? $existing->title;
+                    $existing->sku = $snapshot['sku'] ?? $existing->sku;
+                    $existing->save();
+                } else {
+                    CartItem::create([
+                        'user_id' => $user->id,
+                        'product_id' => $productId,
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'snapshot' => $snapshot,
                         'title' => $snapshot['title'] ?? ($product->title ?? null),
                         'sku' => $snapshot['sku'] ?? ($product->sku ?? null),
-                    ]
-                );
+                    ]);
+                }
             }
         });
 
