@@ -80,17 +80,13 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById("root")).render(
-  <AuthProvider>
-    {" "}
-    <SavedProvider>
-      {" "}
-      <CartProvider>
-        {" "}
+  <CartProvider>
+    <AuthProvider>
+      <SavedProvider>
         <Suspense fallback={<LoadingFallback />}>
-          {" "}
-          <RouterProvider router={router} />{" "}
-        </Suspense>{" "}
-      </CartProvider>{" "}
-    </SavedProvider>{" "}
-  </AuthProvider>,
+          <RouterProvider router={router} />
+        </Suspense>
+      </SavedProvider>
+    </AuthProvider>
+  </CartProvider>,
 );

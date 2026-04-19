@@ -1,34 +1,28 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { CartContext } from "./CartContext.jsx";
 import { Alert } from "../../components/ui/Alert/Alert.jsx";
 
-
-//ключ, под которым в локальном хранилище сохраняются данные корзины
+// ---------- config ----------
 const LOCAL_STORAGE_KEY = "shopper_cart";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
+function getXsrf() {
+  const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+// ---------- end config ----------
 
-/**
- * CartProvider — провайдер корзины.
- *
- * Хранит состояние корзины, синхронизирует с localStorage и предоставляет
- * методы для добавления/удаления/обновления количества товара.
- *
- * Используются числовые id для товаров, при сравнении id приводится к Number.
- */
-
-//children - компоненты, которым нужен доступ к cart‑context и которые рендерятся внутри провайдера
 export const CartProvider = ({ children }) => {
-  //инициалицация корзины при начале сессии из локального хранилища
+  // initial cart from localStorage
   const [cart, setCart] = useState(() => {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
-      console.error("Не удалось разобрать корзину из localStorage:", e);
+      console.error("CartProvider: parse localStorage failed", e);
       return [];
     }
   });
 
-  // локальное состояние для Alert (текущее сообщение)
   const [alert, setAlert] = useState({
     isOpen: false,
     variant: "neutral",
@@ -36,37 +30,202 @@ export const CartProvider = ({ children }) => {
     subtitle: "",
   });
 
-  // синхронизация cart → localStorage при изменениях
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
-    } catch (e) {
-      console.error("Не удалось сохранить корзину в localStorage:", e);
-    }
-  }, [cart]);
+  const showAlert = ({ variant = "neutral", title = "", subtitle = "" }) =>
+    setAlert({ isOpen: true, variant, title, subtitle });
 
-  // утилита: нормализовать id к числу для безопасных сравнений
   const toNum = (v) => {
     const n = Number(v);
     return Number.isNaN(n) ? null : n;
   };
 
-  // функция для показа alert
-  const showAlert = ({ variant = "neutral", title = "", subtitle = "" }) => {
-    setAlert({ isOpen: true, variant, title, subtitle });
+  // persist cart -> localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
+    } catch (e) {
+      console.error("CartProvider: save localStorage failed", e);
+    }
+  }, [cart]);
+
+  // ---------- helpers ----------
+  const normalizeSnapshot = (snapshot) => {
+    if (snapshot === null || snapshot === undefined) return [];
+    if (Array.isArray(snapshot)) return snapshot;
+    if (typeof snapshot === "string") {
+      try {
+        const parsed = JSON.parse(snapshot);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e) {
+        return [snapshot];
+      }
+    }
+    return [snapshot];
   };
 
-  /**
-   * addToCart(item)
-   * - item: объект товара, ожидается, что item.id присутствует (number/string)
-   * - Если товар уже есть в корзине — увеличиваем quantity (или задаём).
-   * - Если товара нет — добавляем с quantity (по умолчанию 1).
-   *
-   * NOTE: при добавлении мы явно сохраняем id как number (если возможно).
-   */
-  const addToCart = (item) => {
+  const buildItemPayload = (p) => ({
+    product_id: p.id,
+    quantity: p.quantity ?? 1,
+    unit_price: p.price ?? p.unit_price ?? null,
+    snapshot: normalizeSnapshot(p.snapshot),
+  });
+
+  // detect "stale" local items: no visual info and no snapshot
+  const isStaleLocalItem = (item) => {
+    const hasTitle = item?.title && String(item.title).trim() !== "";
+    const hasImg = item?.img && String(item.img).trim() !== "";
+    const snapshot = item?.snapshot;
+    const hasSnapshot = Array.isArray(snapshot)
+      ? snapshot.length > 0
+      : snapshot != null;
+    return !(hasTitle || hasImg || hasSnapshot);
+  };
+
+  const cleanStaleLocalItems = (items) => {
+    if (!Array.isArray(items)) return [];
+    const cleaned = items.filter((it) => !isStaleLocalItem(it));
+    if (cleaned.length !== items.length) {
+      console.log("CartProvider: removed stale local items", {
+        before: items.length,
+        after: cleaned.length,
+      });
+    }
+    return cleaned;
+  };
+  // ---------- end helpers ----------
+
+  // ---------- server helpers ----------
+  const fetchServerCart = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/cart`, {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      return Array.isArray(json.data) ? json.data : json;
+    } catch (err) {
+      console.warn("fetchServerCart failed", err);
+      throw err;
+    }
+  };
+
+  const postServerCartItem = async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/cart`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-XSRF-TOKEN": getXsrf(),
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      return json.data ?? json;
+    } catch (err) {
+      console.warn("postServerCartItem failed", err);
+      throw err;
+    }
+  };
+
+  const putServerCartItem = async (id, payload) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/cart/${id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-XSRF-TOKEN": getXsrf(),
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      return json.data ?? json;
+    } catch (err) {
+      console.warn("putServerCartItem failed", err);
+      throw err;
+    }
+  };
+
+  const deleteServerCartItem = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/cart/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-XSRF-TOKEN": getXsrf(), Accept: "application/json" },
+      });
+      if (!res.ok && res.status !== 204) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      return true;
+    } catch (err) {
+      console.warn("deleteServerCartItem failed", err);
+      throw err;
+    }
+  };
+
+  const postServerSync = async (items) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/cart/sync`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-XSRF-TOKEN": getXsrf(),
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ items }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      return Array.isArray(json.data) ? json.data : json;
+    } catch (err) {
+      console.warn("postServerSync failed", err);
+      throw err;
+    }
+  };
+
+  const deleteAllServerCartForUser = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/cart/clear`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-XSRF-TOKEN": getXsrf(),
+          Accept: "application/json",
+        },
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      return true;
+    } catch (err) {
+      console.warn("deleteAllServerCartForUser failed", err);
+      return false;
+    }
+  };
+  // ---------- end server helpers ----------
+
+  // ---------- cart ops ----------
+  const addToCart = async (item) => {
     if (!item || item.id == null) {
-      console.warn("addToCart: неверный item", item);
       showAlert({
         variant: "error",
         title: "Ошибка",
@@ -74,10 +233,8 @@ export const CartProvider = ({ children }) => {
       });
       return;
     }
-
     const itemId = toNum(item.id);
     if (itemId === null) {
-      console.warn("addToCart: id не является числом:", item.id);
       showAlert({
         variant: "error",
         title: "Ошибка",
@@ -86,59 +243,68 @@ export const CartProvider = ({ children }) => {
       return;
     }
 
-    //флаг addedNew - его цель — после вызова setCart понять, добавлен ли новый товар (addedNew === true) или только увеличилось количество существующего в корзине
-    let addedNew = false;
-    //вызов setCart с функциональным обновлением
-    //prev — текущее значение cart на момент вызова
+    // optimistic local update
     setCart((prev) => {
-      //поиск и проверка: существует ли такой товар в корзине?
       const existing = prev.find((i) => toNum(i.id) === itemId);
       if (existing) {
-        //если есть -  для совпадающего товара создаём новый объект с увеличенным количеством: берем текущее i.quantity (или 1, если его нет) и прибавляем item.quantity (или 1)
-        const updated = prev.map((i) =>
+        return prev.map((i) =>
           toNum(i.id) === itemId
-            ? //спредим объект товара и явно перезаписываем количество
-              { ...i, quantity: (i.quantity || 1) + (item.quantity || 1) }
+            ? { ...i, quantity: (i.quantity || 1) + (item.quantity || 1) }
             : i,
         );
-        //возвращаем updated — это новый массив станет новым состоянием cart
-        return updated;
       }
-      //eсли товара нет - добавляем товар, как новый
-      //устанавливаем флаг нового товара в true
-      addedNew = true;
-      //cоздаём новый массив, копируя prev и добавлем новый объект товара...item
-      //затем явно перезаписываем поля id: itemId(сразу приводится к Number)
-      //quantity: item.quantity || 1 - если нет количества оно устанавливается равным 1
       return [...prev, { ...item, id: itemId, quantity: item.quantity || 1 }];
     });
 
-    // Показываем уведомление об успешном добавлении.
-    // Если добавлен новый товар — более явное сообщение
-    if (addedNew) {
-      showAlert({
-        variant: "success",
-        title: "Добавлено в корзину",
-        subtitle: item.title || "",
-      });
-    } else {
-      showAlert({
-        variant: "success",
-        title: "Количество обновлено",
-        subtitle: item.title || "",
-      });
+    // persist to server if logged in (server returns 401 if not)
+    try {
+      const payload = buildItemPayload(item);
+      console.log("addToCart payload:", payload);
+      const serverResult = await postServerCartItem(payload);
+      if (serverResult) {
+        setCart((prev) => {
+          const found = prev.find(
+            (p) => Number(p.id) === Number(serverResult.product_id),
+          );
+          const mapped = {
+            id: serverResult.product_id ?? serverResult.product_id,
+            title:
+              serverResult.snapshot?.title ??
+              serverResult.title ??
+              found?.title ??
+              item.title ??
+              "",
+            img:
+              serverResult.snapshot?.img ??
+              serverResult.snapshot?.img_url ??
+              serverResult.img ??
+              found?.img ??
+              item.img ??
+              null,
+            price: Number(
+              serverResult.unit_price ?? found?.price ?? item.price ?? 0,
+            ),
+            quantity: Number(
+              serverResult.quantity ?? item.quantity ?? found?.quantity ?? 1,
+            ),
+            snapshot:
+              serverResult.snapshot ?? found?.snapshot ?? item.snapshot ?? null,
+          };
+          if (found)
+            return prev.map((p) =>
+              Number(p.id) === Number(mapped.id) ? mapped : p,
+            );
+          return [...prev, mapped];
+        });
+      }
+    } catch (err) {
+      console.warn("addToCart: server persist failed (kept local):", err);
     }
   };
 
-  /**
-   * removeFromCart(itemId)
-   * - Удаляет товар по id. itemId может быть числом или строкой.
-   */
   const removeFromCart = (itemId) => {
     const idNum = toNum(itemId);
     if (idNum === null) {
-      // Если id некорректен — ничего не делаем
-      console.warn("removeFromCart: неверный itemId", itemId);
       showAlert({
         variant: "error",
         title: "Ошибка",
@@ -147,29 +313,30 @@ export const CartProvider = ({ children }) => {
       return;
     }
 
-    // Найдём удаляемый товар, чтобы показать его название в уведомлении
     const toRemove = cart.find((i) => toNum(i.id) === idNum);
     setCart((prev) => prev.filter((i) => toNum(i.id) !== idNum));
 
-    // Показать уведомление (если товар был в корзине)
-    if (toRemove) {
+    if (toRemove)
       showAlert({
         variant: "info",
         title: "Удалено из корзины",
         subtitle: toRemove.title || "",
       });
-    }
+
+    (async () => {
+      try {
+        const serverCart = await fetchServerCart();
+        const found = serverCart.find((s) => Number(s.product_id) === idNum);
+        if (found && found.id) await deleteServerCartItem(found.id);
+      } catch (err) {
+        // ignore
+      }
+    })();
   };
 
-  /**
-   * updateQuantity(itemId, quantity)
-   * - Если quantity <= 0 — удаляет товар.
-   * - Иначе — обновляет quantity.
-   */
-  const updateQuantity = (itemId, quantity) => {
+  const updateQuantity = async (itemId, quantity) => {
     const idNum = toNum(itemId);
     if (idNum === null) {
-      console.warn("updateQuantity: неверный itemId", itemId);
       showAlert({
         variant: "error",
         title: "Ошибка",
@@ -179,43 +346,195 @@ export const CartProvider = ({ children }) => {
     }
 
     setCart((prev) => {
-      if (quantity <= 0) {
-        // удаляем и показываем уведомление
-        const toRemove = prev.find((i) => toNum(i.id) === idNum);
-        const next = prev.filter((i) => toNum(i.id) !== idNum);
-        if (toRemove) {
-          showAlert({
-            variant: "info",
-            title: "Удалено из корзины",
-            subtitle: toRemove.title || "",
+      if (Number(quantity) <= 0)
+        return prev.filter((i) => toNum(i.id) !== idNum);
+      return prev.map((i) => (toNum(i.id) === idNum ? { ...i, quantity } : i));
+    });
+
+    showAlert({
+      variant: "success",
+      title: "Количество обновлено",
+      subtitle: "",
+    });
+
+    (async () => {
+      try {
+        const serverCart = await fetchServerCart();
+        const found = serverCart.find((s) => Number(s.product_id) === idNum);
+        if (found && found.id) {
+          const payload = { product_id: idNum, quantity };
+          await putServerCartItem(found.id, payload);
+        } else {
+          const local = (cart || []).find((c) => Number(c.id) === idNum) || {};
+          const payloadWithSnapshot = { ...buildItemPayload(local), quantity };
+          await postServerCartItem(payloadWithSnapshot);
+        }
+      } catch (err) {
+        // ignore
+      }
+    })();
+  };
+
+  const clearCart = useCallback(() => {
+    setCart([]);
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch (e) {
+      console.error("clearCart: localStorage remove failed", e);
+    }
+    showAlert({ variant: "info", title: "Корзина очищена", subtitle: "" });
+  }, []);
+
+  const syncGuestToServer = useCallback(async () => {
+    try {
+      const mergeFlag = sessionStorage.getItem("shopper_merge_pending");
+      if (!mergeFlag) {
+        console.debug(
+          "syncGuestToServer: merge not allowed (no merge_pending flag)",
+        );
+        return false;
+      }
+
+      const localCart = Array.isArray(cart) ? [...cart] : [];
+      console.log(
+        "local cart snapshot before sync:",
+        JSON.stringify(localCart),
+      );
+
+      const items = localCart.map((p) => buildItemPayload(p));
+      console.log("syncGuestToServer payload:", JSON.stringify({ items }));
+
+      const serverItems = await postServerSync(items);
+      console.log("syncGuestToServer serverItems:", serverItems);
+
+      const serverByProductId = new Map();
+      (serverItems || []).forEach((s) =>
+        serverByProductId.set(Number(s.product_id), s),
+      );
+
+      const merged = localCart.map((localItem) => {
+        const s = serverByProductId.get(Number(localItem.id));
+        if (!s) return localItem;
+        return {
+          id: localItem.id,
+          title:
+            s.snapshot?.title ??
+            s.title ??
+            s.name ??
+            s.product_name ??
+            localItem.title ??
+            "",
+          img:
+            s.snapshot?.img ??
+            s.snapshot?.img_url ??
+            s.img ??
+            s.image ??
+            localItem.img ??
+            null,
+          price: Number(s.unit_price ?? localItem.price ?? 0),
+          quantity: Number(s.quantity ?? localItem.quantity ?? 1),
+          snapshot: s.snapshot ?? localItem.snapshot ?? null,
+        };
+      });
+
+      (serverItems || []).forEach((s) => {
+        const found = localCart.find(
+          (p) => Number(p.id) === Number(s.product_id),
+        );
+        if (!found)
+          merged.push({
+            id: s.product_id,
+            title: s.snapshot?.title ?? s.title ?? "",
+            img: s.snapshot?.img ?? s.snapshot?.img_url ?? s.img ?? null,
+            price: Number(s.unit_price ?? 0),
+            quantity: Number(s.quantity ?? 1),
+            snapshot: s.snapshot ?? null,
+          });
+      });
+
+      setCart(merged);
+      console.log("cart after merge:", JSON.stringify(merged));
+
+      try {
+        sessionStorage.removeItem("shopper_merge_pending");
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+      } catch (e) {}
+
+      return true;
+    } catch (err) {
+      console.error("syncGuestToServer failed", err);
+      return false;
+    }
+  }, [cart]);
+
+  // handle server cart set event from AuthProvider
+  useEffect(() => {
+    const handler = (e) => {
+      const serverCart = e?.detail?.serverCart;
+      if (!Array.isArray(serverCart)) return;
+      // Map server items to client shape
+      const mapped = serverCart.map((s) => ({
+        id: s.product_id ?? s.product_id,
+        title: s.snapshot?.title ?? s.title ?? "",
+        img: s.snapshot?.img ?? s.snapshot?.img_url ?? s.img ?? null,
+        price: Number(s.unit_price ?? 0),
+        quantity: Number(s.quantity ?? 1),
+        snapshot: s.snapshot ?? null,
+      }));
+      // If mapped empty but local cart has only stale items -> clear them
+      if (
+        (!mapped || mapped.length === 0) &&
+        Array.isArray(cart) &&
+        cart.length > 0
+      ) {
+        const cleaned = cleanStaleLocalItems(cart);
+        setCart(cleaned);
+        console.log(
+          "CartProvider: replaced stale local cart with cleaned:",
+          cleaned,
+        );
+      } else {
+        setCart(mapped);
+        console.log("CartProvider: setCart from server event:", mapped);
+      }
+    };
+    window.addEventListener("cart:setFromServer", handler);
+    return () => window.removeEventListener("cart:setFromServer", handler);
+  }, [cart]);
+
+  // on mount: if local cart exists but appears stale, clean it.
+  useEffect(() => {
+    try {
+      const local = Array.isArray(cart) ? cart : [];
+      if (local.length > 0) {
+        const cleaned = cleanStaleLocalItems(local);
+        if (cleaned.length !== local.length) {
+          setCart(cleaned);
+          console.log("CartProvider: cleaned stale items on mount", {
+            before: local.length,
+            after: cleaned.length,
           });
         }
-        return next;
       }
-      // обновляем количество
-      const updated = prev.map((i) =>
-        toNum(i.id) === idNum ? { ...i, quantity } : i,
-      );
-      showAlert({
-        variant: "success",
-        title: "Количество обновлено",
-        subtitle: "",
-      });
-      return updated;
-    });
-  };
-
-  const clearCart = () => {
-    setCart([]);
-    showAlert({ variant: "info", title: "Корзина очищена", subtitle: "" });
-  };
+    } catch (e) {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    // компонент экспортирует в value контекста: cart, addToCart, removeFromCart, updateQuantity, clearCart.
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart }}
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        clearCart,
+        syncGuestToServer,
+        fetchServerCart,
+        deleteAllServerCartForUser,
+      }}
     >
-      {/* pендерит дочерние компоненты и компонент Alert с текущим сообщением. */}
       {children}
       <Alert
         variant={alert.variant}
@@ -227,3 +546,5 @@ export const CartProvider = ({ children }) => {
     </CartContext.Provider>
   );
 };
+
+export default CartProvider;

@@ -1,41 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import { AuthContext } from "./AuthContext.jsx";
 import { BACKEND } from "../../config/backend.js";
-
-/**
- * AuthProvider - компонент-обёртка, предоставляет состояние и функции авторизации
- * через контекст AuthContext всем children.
- *
- * Value (в контексте) содержит:
- * - user           — объект текущего пользователя или null (если не авторизован)
- * - setUser        — сеттер для user (иногда удобно вызывать вручную)
- * - checking       — флаг загрузки при синхронизации user с сервером
- * - fetchUser      — синхронизировать/получить user с бэка (GET /api/user)
- * - getCsrf        — запрос CSRF cookie для Laravel Sanctum (/sanctum/csrf-cookie)
- * - login          — выполнить вход (POST /api/login)
- * - register       — выполнить регистрацию (POST /api/register)
- * - logout         — выполнить выход (POST /api/logout) и очистить клиентское состояние
- * - BACKEND        — базовый URL бекенда (из config)
- *
- * Замечания:
- * - Используется credentials: "include" для cookie-based (session) аутентификации (Laravel Sanctum).
- * - Заголовок X-XSRF-TOKEN ставится из cookie XSRF-TOKEN (getCookie), который устанавливает /sanctum/csrf-cookie.
- * - Обработку ошибок Laravel (validation) реализует handleResponseErrors — при ошибках бросает Error с полем formErrors.
- */
+import { CartContext } from "../cart/CartContext.jsx";
 
 export const AuthProvider = ({ children }) => {
-  // объект текущего пользователя (null, если неавторизован; user !== null → авторизован)
   const [user, setUser] = useState(null);
-  // флаг, который показывает, выполняется ли сейчас проверка пользователя на стороне сервера.
-  // true — "мы ещё не узнали, есть ли текущий залогиненный пользователь"; обычно используется для показа спиннера/placeholder.
   const [checking, setChecking] = useState(true);
 
-  /**
-   * getCsrf — запрос /sanctum/csrf-cookie (Laravel Sanctum)
-   *
-   * Браузер получит ответ, в котором сервер установит cookie XSRF-TOKEN (не HttpOnly).
-   * После этого фронтенд может читать XSRF-TOKEN и отправлять его в заголовке X-XSRF-TOKEN при POST/PUT/DELETE.
-   */
+  const cartCtx = useContext(CartContext);
+  const fetchServerCart =
+    cartCtx && typeof cartCtx.fetchServerCart === "function"
+      ? cartCtx.fetchServerCart
+      : null;
+  const clearCart =
+    cartCtx && typeof cartCtx.clearCart === "function"
+      ? cartCtx.clearCart
+      : null;
+  const deleteAllServerCartForUser =
+    cartCtx && typeof cartCtx.deleteAllServerCartForUser === "function"
+      ? cartCtx.deleteAllServerCartForUser
+      : null;
+
+  const syncCalledRef = useRef(false);
+
   const getCsrf = async () => {
     try {
       await fetch(`${BACKEND}/sanctum/csrf-cookie`, {
@@ -43,16 +31,11 @@ export const AuthProvider = ({ children }) => {
         credentials: "include",
       });
     } catch (err) {
-      // Ошибку логируем, но оставляем обработку вызывающему коду.
       console.error("getCsrf error", err);
       throw err;
     }
   };
 
-  /**
-   * getCookie — вспомогательная функция для чтения не-HttpOnly cookie из document.cookie
-   * (используется для чтения XSRF-TOKEN и установки заголовка X-XSRF-TOKEN).
-   */
   const getCookie = (name) => {
     const match = document.cookie.match(
       new RegExp("(^| )" + name + "=([^;]+)"),
@@ -60,12 +43,6 @@ export const AuthProvider = ({ children }) => {
     return match ? decodeURIComponent(match[2]) : null;
   };
 
-  /**
-   * fetchUser — синхронизирует состояние user с бекендом (GET /api/user)
-   *
-   * keepLocal = true — в случае ошибки не затирает локальный user (полезно, если вы временно хотите сохранить state)
-   * Возвращает объект user или null.
-   */
   const fetchUser = async ({ keepLocal = false } = {}) => {
     try {
       setChecking(true);
@@ -76,52 +53,36 @@ export const AuthProvider = ({ children }) => {
           "X-Requested-With": "XMLHttpRequest",
         },
       });
-
       if (!res.ok) {
-        if (!keepLocal) {
-          setUser(null);
-        }
+        if (!keepLocal) setUser(null);
         return null;
       }
-
       const data = await res.json();
       setUser(data);
 
-      // If there was a pending saved->cart intent, notify listeners
       try {
         const pending = sessionStorage.getItem("saved_move_to_cart_pending");
         if (pending) {
           sessionStorage.removeItem("saved_move_to_cart_pending");
-          // dispatch event so SavedDrawer opens
           window.dispatchEvent(new CustomEvent("saved:moveToCartPending"));
         }
-      } catch (e) {
-        // ignore storage errors
-      }
+      } catch (e) {}
 
       return data;
     } catch (err) {
       console.error("fetchUser error", err);
-      if (!keepLocal) {
-        setUser(null);
-      }
+      if (!keepLocal) setUser(null);
       return null;
     } finally {
       setChecking(false);
     }
   };
 
-  // при монтировании провайдера — синхронизируем user (проверяем, есть ли активная сессия)
   useEffect(() => {
     fetchUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /**
-   * handleResponseErrors — парсит JSON-ответы с ошибками в формате Laravel и бросает Error.
-   * Если в ответе есть validation errors (data.errors), формирует поле err.formErrors = { field: message }.
-   * Вызывающий код может ловить ошибку и показывать formErrors рядом с полями формы.
-   */
   const handleResponseErrors = async (res) => {
     const data = await res.json().catch(() => ({}));
     if (data.errors && typeof data.errors === "object") {
@@ -135,46 +96,48 @@ export const AuthProvider = ({ children }) => {
       err.formErrors = flat;
       throw err;
     }
-    if (data.message) {
-      throw new Error(data.message);
-    }
+    if (data.message) throw new Error(data.message);
     throw new Error("Request failed");
   };
 
-  /**
-   * login — вход пользователя
-   * При успешном входе вызывает fetchUser() чтобы синхронизировать состояние.
-   * Бросает ошибку (с возможным err.formErrors) при неуспехе.
-   *
-   * Параметры: { email, password }
-   */
   const login = async ({ email, password }) => {
-    await getCsrf(); // получаем XSRF cookie перед POST
+    await getCsrf();
     const res = await fetch(`${BACKEND}/api/login`, {
       method: "POST",
-      credentials: "include", // важно для cookie-based аутентификации
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         "X-XSRF-TOKEN": getCookie("XSRF-TOKEN"),
       },
       body: JSON.stringify({ email, password }),
     });
+    if (!res.ok) await handleResponseErrors(res);
+    const serverUser = await fetchUser();
 
-    if (!res.ok) {
-      await handleResponseErrors(res);
+    // After login, load server cart and set it as current cart (do not auto-merge guest cart)
+    try {
+      if (typeof fetchServerCart === "function") {
+        const serverCart = await fetchServerCart();
+        window.dispatchEvent(
+          new CustomEvent("cart:setFromServer", { detail: { serverCart } }),
+        );
+      }
+    } catch (e) {
+      console.warn("login: failed to load server cart", e);
     }
 
-    // обновим состояние user (GET /api/user)
-    const serverUser = await fetchUser();
+    // mark merge pending only if guest cart exists
+    try {
+      const raw = localStorage.getItem("shopper_cart");
+      if (raw) {
+        sessionStorage.setItem("shopper_merge_pending", "1");
+        window.dispatchEvent(new CustomEvent("cart:mergePending"));
+      }
+    } catch (e) {}
+
     return serverUser;
   };
 
-  /**
-   * register — регистрация пользователя
-   * При успешной регистрации синхронизирует user через fetchUser().
-   *
-   * Параметры: { name, email, password, password_confirmation }
-   */
   const register = async ({ name, email, password, password_confirmation }) => {
     await getCsrf();
     const res = await fetch(`${BACKEND}/api/register`, {
@@ -186,35 +149,14 @@ export const AuthProvider = ({ children }) => {
       },
       body: JSON.stringify({ name, email, password, password_confirmation }),
     });
-
-    if (!res.ok) {
-      await handleResponseErrors(res);
-    }
-
+    if (!res.ok) await handleResponseErrors(res);
     const serverUser = await fetchUser();
     return serverUser;
   };
 
-  /**
-   * logout — выход пользователя
-   *
-   * Алгоритм:
-   * 1) getCsrf() — гарантируем наличие XSRF cookie
-   * 2) POST /api/logout с credentials: "include" и X-XSRF-TOKEN
-   * 3) Независимо от ответа сервера очищаем клиентский user (setUser(null))
-   *
-   * Примечание: на сервере маршрут /api/logout должен инвалидировать сессию и/или удалить токен.
-   */
-  const logout = async () => {
+  const logout = async ({ clearServerCart = false } = {}) => {
     try {
-      console.log("AuthProvider.logout called");
-      // Проверяем/получаем CSRF-cookie
       await getCsrf();
-
-      console.log("AuthProvider.logout: got CSRF, about to fetch /api/logout");
-      console.log("AuthProvider.logout: about to call fetch /api/logout");
-      // Если getCsrf не используется в вашей среде, поставьте лог и перед fetch:
-      // console.log("AuthProvider.logout: calling fetch /api/logout");
       let res;
       try {
         res = await fetch(`${BACKEND}/api/logout`, {
@@ -225,35 +167,83 @@ export const AuthProvider = ({ children }) => {
             "X-XSRF-TOKEN": getCookie("XSRF-TOKEN"),
           },
         });
-        console.log(
-          "AuthProvider.logout: fetch completed, status =",
-          res.status,
-        );
+        console.log("AuthProvider.logout: status =", res.status);
       } catch (fetchErr) {
-        console.error("AuthProvider.logout: fetch threw error", fetchErr);
+        console.error("AuthProvider.logout: fetch threw", fetchErr);
         throw fetchErr;
       }
 
       if (!res.ok) {
-        // Попытка распарсить тело ошибки для диагностики (но даже при ошибке очищаем состояние)
         try {
           const data = await res.json();
           console.error("Logout failed:", data);
         } catch (err) {
-          // используем err для логирования, чтобы ESLint не ругался на неиспользуемую переменную
           console.error("Logout failed (no json)", err);
         }
       }
     } catch (err) {
       console.error("logout error", err);
     } finally {
-      // Всегда очищаем клиентское состояние пользователя.
+      // aggressive client cleanup: clear user and cart state
       setUser(null);
-      // Здесь при необходимости можно очистить localStorage, корзину и т.д.
+
+      try {
+        // clear in-memory + localStorage
+        if (typeof clearCart === "function") {
+          clearCart();
+        } else {
+          try {
+            localStorage.removeItem("shopper_cart");
+          } catch (e) {}
+          window.dispatchEvent(new CustomEvent("cart:cleared:client"));
+        }
+
+        // optionally clear server cart for this user (if requested and API supports)
+        if (
+          clearServerCart &&
+          typeof deleteAllServerCartForUser === "function"
+        ) {
+          try {
+            await deleteAllServerCartForUser();
+          } catch (e) {
+            console.warn("logout: deleteAllServerCartForUser failed", e);
+          }
+        }
+
+        // remove any merge flag
+        try {
+          sessionStorage.removeItem("shopper_merge_pending");
+        } catch (e) {}
+      } catch (e) {
+        console.error("AuthProvider.logout: clearing cart failed", e);
+      }
     }
   };
 
-  // Контекст, который получат потребители через useAuth()
+  useEffect(() => {
+    if (!user) return;
+    if (typeof fetchServerCart !== "function") {
+      console.debug("AuthProvider: fetchServerCart not available");
+      return;
+    }
+    (async () => {
+      try {
+        console.log(
+          "AuthProvider: fetching server cart for user",
+          user.id ?? user,
+        );
+        const serverCart = await fetchServerCart();
+        console.log("AuthProvider: serverCart fetched", serverCart);
+        window.dispatchEvent(
+          new CustomEvent("cart:setFromServer", { detail: { serverCart } }),
+        );
+      } catch (e) {
+        console.warn("AuthProvider: failed to fetch server cart", e);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
