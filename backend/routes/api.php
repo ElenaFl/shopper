@@ -14,6 +14,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ChatWidgetController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\SavedItemController;
+use App\Http\Controllers\Api\CartController;
 
 /*
 |--------------------------------------------------------------------------
@@ -66,10 +67,16 @@ Route::middleware('web')->group(function () {
         Route::get('/orders/{id}', [OrderController::class, 'show'])->middleware('auth:sanctum');
     // });
 
-Route::get('/user/saved-items', [SavedItemController::class, 'index'])->middleware('auth:sanctum');
-Route::post('/user/saved-items', [SavedItemController::class, 'store'])->middleware('auth:sanctum');
-Route::delete('/user/saved-items/{id}', [SavedItemController::class, 'destroy'])->middleware('auth:sanctum');
-Route::post('/user/saved-items/sync', [SavedItemController::class, 'sync'])->middleware('auth:sanctum');
+    Route::get('/user/saved-items', [SavedItemController::class, 'index'])->middleware('auth:sanctum');
+    Route::post('/user/saved-items', [SavedItemController::class, 'store'])->middleware('auth:sanctum');
+    Route::delete('/user/saved-items/{id}', [SavedItemController::class, 'destroy'])->middleware('auth:sanctum');
+    Route::post('/user/saved-items/sync', [SavedItemController::class, 'sync'])->middleware('auth:sanctum');
+
+    Route::get('/user/cart', [CartController::class, 'index'])->middleware('auth:sanctum');
+    Route::post('/user/cart', [CartController::class, 'store'])->middleware('auth:sanctum');
+    Route::put('/user/cart/{id}', [CartController::class, 'update'])->middleware('auth:sanctum');
+    Route::delete('/user/cart/{id}', [CartController::class, 'destroy'])->middleware('auth:sanctum');
+    Route::post('/user/cart/sync', [CartController::class, 'sync'])->middleware('auth:sanctum');
 
 });
 
