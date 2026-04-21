@@ -17,28 +17,22 @@ use App\Http\Controllers\Api\SavedItemController;
 use App\Http\Controllers\Api\CartController;
 
 /*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Здесь располагаются API маршруты. Аутентификационные маршруты
-| (login/register/logout/user) зарегистрированы внутри web middleware
-| для корректной работы cookie‑based Sanctum (stateful).
-|
+*
+* API маршруты
+*
 */
 
-// Public resources
+// Публичные
 Route::apiResource('categories', CategoryController::class)->only(['index','show']);
 Route::apiResource('products', ProductController::class)->only(['index','show']);
 
-// Admin API (web + auth:sanctum)
+// Admin (web + auth:sanctum)
 Route::prefix('admin')->middleware(['web','auth:sanctum'])->group(function () {
     Route::apiResource('categories', AdminCategoryController::class);
     Route::apiResource('products', AdminProductController::class);
     Route::get('reviews', [ReviewAdminController::class, 'index']);
 });
 
-// Blog routes (public read, auth required for posting/deleting comments)
 Route::prefix('blog')->group(function () {
     Route::get('posts', [PostController::class, 'index']);
     Route::get('posts/{post}', [PostController::class, 'show']);
@@ -50,28 +44,33 @@ Route::prefix('blog')->group(function () {
     });
 });
 
-// Auth and review routes (stateful) — run under web middleware so sessions/CSRF work
+
 Route::middleware('web')->group(function () {
+    //аутентификация
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'me']);
-    // Reviews for products (stateful, auth:sanctum)
+
+    //stateful и требуют авторизации
+    // отзывы о товарах
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->middleware('auth:sanctum');
     Route::get('/products/{product}/reviews', [ReviewController::class, 'index'])->middleware('auth:sanctum');
     Route::get('reviews', [ReviewAdminController::class, 'index'])->middleware('auth:sanctum');
     Route::delete('/products/{product}/reviews/{review}',   [ReviewController::class, 'destroy'])->middleware('auth:sanctum');
-    // Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/orders', [OrderController::class, 'store'])->middleware('auth:sanctum');
-        Route::get('/orders', [OrderController::class, 'index'])->middleware('auth:sanctum');
-        Route::get('/orders/{id}', [OrderController::class, 'show'])->middleware('auth:sanctum');
-    // });
 
+    // заказы
+    Route::post('/orders', [OrderController::class, 'store'])->middleware('auth:sanctum');
+    Route::get('/orders', [OrderController::class, 'index'])->middleware('auth:sanctum');
+    Route::get('/orders/{id}', [OrderController::class, 'show'])->middleware('auth:sanctum');
+
+    // сохранённые элементы (wishlist)
     Route::get('/user/saved-items', [SavedItemController::class, 'index'])->middleware('auth:sanctum');
     Route::post('/user/saved-items', [SavedItemController::class, 'store'])->middleware('auth:sanctum');
     Route::delete('/user/saved-items/{id}', [SavedItemController::class, 'destroy'])->middleware('auth:sanctum');
     Route::post('/user/saved-items/sync', [SavedItemController::class, 'sync'])->middleware('auth:sanctum');
 
+    // корзина
     Route::get('/user/cart', [CartController::class, 'index'])->middleware('auth:sanctum');
     Route::post('/user/cart', [CartController::class, 'store'])->middleware('auth:sanctum');
     Route::put('/user/cart/{id}', [CartController::class, 'update'])->middleware('auth:sanctum');

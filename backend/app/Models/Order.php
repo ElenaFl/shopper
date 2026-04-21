@@ -7,11 +7,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\OrderItem;
 
+/**
+ *
+ * Модель Order
+ */
+
 class Order extends Model
 {
-    public $incrementing = false; // id — string
+
+    // первичный ключ модели не является автоинкрементным целым числом
+    public $incrementing = false;
+
+    // первичный ключ модели строковый (id генерируется в коде - OrderController::store)
     protected $keyType = 'string';
 
+    // поля массового заполнения
     protected $fillable = [
         'id',
         'number',
@@ -22,6 +32,7 @@ class Order extends Model
         'payment',
     ];
 
+    // эти поля автоматически при чтении/записи преобразуются в/из массива (JSON в БД)
     protected $casts = [
         'totals' => 'array',
         'billing' => 'array',

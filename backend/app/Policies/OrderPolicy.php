@@ -5,10 +5,16 @@ namespace App\Policies;
 use App\Models\Order;
 use App\Models\User;
 
+
+/**
+ * Класс политики (Policy) — набор правил авторизации для модели Order,
+ * регистрируется для модели Order и затем вызывается, например, $this->authorize('view', $order) в контроллере
+ */
+
 class OrderPolicy
 {
     /**
-     * Determine whether the user can view any models.
+     * Может ли пользователь смотреть свои заказы (пока не используется в контроллере, в последующем - для унифицирования логики)
      */
     public function viewAny(User $user): bool
     {
@@ -16,7 +22,7 @@ class OrderPolicy
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Разрешает просмотр конкретного заказа
      */
     public function view(?User $user, Order $order): bool
     {
@@ -31,7 +37,7 @@ class OrderPolicy
     }
 
     /**
-     * Determine whether the user can create models.
+     * Разрешение на создание заказа
      */
     public function create(User $user): bool
     {
@@ -39,7 +45,7 @@ class OrderPolicy
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Разрешение на изменение заказа
      */
     public function update(User $user, Order $order): bool
     {
@@ -47,7 +53,7 @@ class OrderPolicy
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Разрешение на удаление заказа
      */
     public function delete(User $user, Order $order): bool
     {
@@ -55,7 +61,7 @@ class OrderPolicy
     }
 
     /**
-     * Determine whether the user can restore the model.
+     * Разрешение на восстановление заказа
      */
     public function restore(User $user, Order $order): bool
     {
@@ -63,7 +69,7 @@ class OrderPolicy
     }
 
     /**
-     * Determine whether the user can permanently delete the model.
+     *Разрешение на принудительное удаление заказа
      */
     public function forceDelete(User $user, Order $order): bool
     {

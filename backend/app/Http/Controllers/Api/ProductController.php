@@ -8,43 +8,55 @@ use App\Models\Discount;
 use Illuminate\Http\Request;
 use App\Http\Resources\ProductResource;
 use Illuminate\Support\Facades\DB;
-use App\Jobs\IncrementProductViews;
+
+
+/**
+* Список товаров с дополнительными фильтрами, сортировкой и разбивкой по страницам.
+* Параметры запроса: per_page (по умолчанию 24), страница, идентификатор категории_id, поиск, сортировка (новые|price_asc|price_desc|популярные)
+*/
 
 class ProductController extends Controller
 {
     /**
-     * List products with optional filters, sort and pagination.
-     * Query params: per_page (default 24), page, category_id, search, sort (newest|price_asc|price_desc|popular)
+     * Принимает HTTP‑запрос Laravel (автоматически инъецируется - превращается а объект Request $request). Здесь читаются query‑параметры и строится ответ с продуктами.
      */
     public function index(Request $request)
     {
+        // чтение параметров запроса
+        // сколько элементов возвращать на страницу(по умолчанию 24)
         $perPage = (int) $request->query('per_page');
+        // сортировать по умолчанию - до дате - вначале новые
         $sort = $request->query('sort', 'newest');
         $categoryId = $request->query('category_id');
         $search = (string) $request->query('search', '');
-
+        // фиксация текущего времени
         $now = now();
 
-        // Eloquent query, with category relation
+        // создается объект продукта сразу с категорией
         $query = Product::query()->with('category');
 
-        // eager-load active discounts condition (we will attach normalized discounts later to avoid SKU-case issues)
-        // keep this for potential eager loading but we won't rely solely on it
+        //при создании объекта продукта сразу подгружаются скидки(действующие в настоящее время)
+        //$dq — это билдер для relation use ($now) делает доступной переменную $now внутри
         $query->with(['discounts' => function ($dq) use ($now) {
             $dq->where('active', true)
+                //условие: подгружать только те скидки, у которых поле active = true (только активные скидки)
                 ->where(function ($sq) use ($now) {
                     $sq->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
                 })
+                //проверяет, что скидка ещё не закончилась
                 ->where(function ($sq) use ($now) {
                     $sq->whereNull('ends_at')->orWhere('ends_at', '>=', $now);
                 })
+                // сортирует подгружаемые скидки по убыванию id (обычно чтобы при наличии нескольких скидок взять самую новую первой)
                 ->orderByDesc('id');
         }]);
 
+        // если задан параметр category_id, добавляем в запрос условие WHERE category_id = :categoryId. Фильтрация по категории
         if ($categoryId) {
             $query->where('category_id', $categoryId);
         }
 
+        //Если параметр search не пустой: ограничиваем длину поисковой строки до 200 символов и убираем пробелы по краям. Добавляем вложенное условие, которое ищет совпадение по title или description через SQL LIKE с шаблоном %s% (подстрока). Вложенный where группирует оба условия вместе
         if ($search !== '') {
             $s = trim(mb_substr($search, 0, 200));
             $query->where(function ($q) use ($s) {
@@ -53,6 +65,7 @@ class ProductController extends Controller
             });
         }
 
+        // если в запросе передан непустой price_min: приводим его к float и добавляем условие price >= min. Фильтр по минимальной цене
         if ($request->filled('price_min')) {
             $min = (float) $request->query('price_min');
             $query->where('price', '>=', $min);
@@ -63,8 +76,8 @@ class ProductController extends Controller
             $query->where('price', '<=', $max);
         }
 
+        //Если флаг on_sale истинный (приводится к boolean): добавляем условие WHERE EXISTS (подзапрос): ищется хотя бы одна запись в таблице discounts, где: нормализованные sku (LOWER(TRIM(...))) совпадают между discounts и products, скидка помечена active = true, текущая дата $now находится в интервале (starts_at <= now или starts_at IS NULL) и (ends_at >= now или ends_at IS NULL)
         if ($request->boolean('on_sale')) {
-            // filter products that have an active discount (using WHERE EXISTS with normalized SKU compare)
             $query->whereExists(function ($q) use ($now) {
                 $q->select(DB::raw(1))
                     ->from('discounts')
@@ -80,6 +93,7 @@ class ProductController extends Controller
             });
         }
 
+        // Применяем сортировку в зависимости от значения $sort:'popular' — сначала по popularity_score (убывание), затем по sales_count.'price_asc' / 'price_desc' — по цене.'newest' (или любое другое значение по умолчанию) — по created_at, новые сверху.
         switch ($sort) {
             case 'popular':
                 $query->orderByDesc('popularity_score')->orderByDesc('sales_count');
@@ -96,15 +110,18 @@ class ProductController extends Controller
                 break;
         }
 
-        // Execute query with pagination or full collection
+        // выполняем запрос: если per_page > 0 — используем пагинацию paginate($perPage) (вернёт LengthAwarePaginator с метадатой). Иначе — получаем всю коллекцию результатов через get().
         if ($perPage > 0) {
             $items = $query->paginate($perPage);
         } else {
             $items = $query->get();
         }
 
-        // Normalize SKUs from retrieved products (lowercase + trim) and build list
+        // готовим коллекцию моделей, с которой будем работать далее: если $items — пагинатор, извлекаем модели текущей страницы через $items->items() и оборачиваем их в коллекцию.Иначе (если $items — уже Collection), используем её напрямую.
         $productItems = $items instanceof \Illuminate\Pagination\LengthAwarePaginator ? collect($items->items()) : $items;
+
+        // Собираем массив нормализованных SKU: pluck('sku') — беру поле sku у каждой модели. filter() — убираем пустые/null. map(...) — приводим каждый sku к string, trim и lowercase (нормализация). unique() — оставляем только уникальные значения. values()->all() — переиндексируем и получаем plain array для использования в запросе
+
         $skus = $productItems
             ->pluck('sku')
             ->filter()
@@ -116,7 +133,7 @@ class ProductController extends Controller
             ->all();
 
         if (!empty($skus)) {
-            // Load active discounts matching normalized SKUs
+            // загружаем активные скидки, соответствующие нормализованным артикулам SKUs
             $discounts = Discount::query()
                 ->where('active', true)
                 ->where(function ($q) use ($now) {
@@ -132,7 +149,7 @@ class ProductController extends Controller
                     return mb_strtolower(trim((string) $d->sku));
                 });
 
-            // Attach discounts to products by normalized SKU so ProductResource sees them as relation 'discounts'
+            // привязываем скидки к товарам по нормализованному артикулу, чтобы ProductResource рассматривал их как отношение "скидки"
             foreach ($productItems as $product) {
                 $key = mb_strtolower(trim((string) $product->sku));
                 $matched = $discounts->get($key) ?? collect();

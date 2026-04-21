@@ -11,10 +11,15 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * OrderController
+ */
+
 class OrderController extends Controller
 {
     public function store(Request $request)
     {
+        // проверяется структура запроса: обязательно items (непустой массив), для каждого элемента требуются title, price, quantity и т.п.
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable',
@@ -30,10 +35,12 @@ class OrderController extends Controller
 
         // генерируем id, number
         $id = $request->input('id') ?? 'order-' . now()->timestamp . '-' . Str::random(6);
+        //mt_rand(0, 999999) — генерирует случайное целое число от 0 до 999999 (включительно). Используется mt_rand вместо rand потому что он быстрее и имеет лучшее распределение. str_pad(..., 6, '0', STR_PAD_LEFT) — приводит полученное число к длине 6 символов
         $number = 'ORD-' . str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        // Создадим заказ в транзакции и удалим корзину после успешного создания заказа
+        // создадим заказ в транзакции и удалим корзину после успешного создания заказа
         $order = null;
+
         DB::beginTransaction();
         try {
             $order = Order::create([
@@ -58,7 +65,7 @@ class OrderController extends Controller
                 ]);
             }
 
-            // Всё успешно — коммитим
+            // всё успешно — коммитим. Завершается (фикcируется) текущая транзакция базы данных — то есть делаются все выполненные внутри транзакции изменения постоянными и видимыми для других соединений
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -66,18 +73,20 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order creation failed'], 500);
         }
 
-        // После успешного создания заказа — очистим корзину пользователя на сервере.
+        // после успешного создания заказа — очистим корзину пользователя на сервере
         try {
             if (Auth::id()) {
                 CartItem::where('user_id', Auth::id())->delete();
             }
         } catch (\Throwable $e) {
-            // Не критично для успешного оформления заказа — только логируем
+            // логируем ошибки
             Log::warning('Failed to clear cart after order: ' . $e->getMessage());
         }
 
+        // загрузка отношений
         $order->load('items');
 
+        // возвращает созданный заказ с позициями и HTTP 201 Created
         return response()->json($order, 201);
     }
 
@@ -99,7 +108,7 @@ class OrderController extends Controller
         return response()->json(['message' => 'Unauthenticated'], 401);
     }
 
-    // опционально: index для текущего пользователя
+    // index для текущего пользователя
     public function index(Request $request)
     {
         $user = $request->user();

@@ -26,13 +26,11 @@ class Post extends Model
         'published_at' => 'datetime',
     ];
 
-    // Author (user who created the post)
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
     }
 
-    // Comments for this post
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class)->orderBy('created_at', 'asc');

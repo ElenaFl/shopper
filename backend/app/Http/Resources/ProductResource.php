@@ -5,8 +5,16 @@ namespace App\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 use \App\Http\Resources\ReviewResource;
 
+/**
+ * ProductResource превращает модель Product в массив/JSON для API. Здесь производится нормализация изображений, расчёт итоговой цены со скидкой, формирование полезной структуры полей и условный вывод связанных данных (reviews, category)
+ */
+
 class ProductResource extends JsonResource
 {
+
+    /**
+     * Вспомогательный метод для нормализации значения поля изображения. Вход: строка (пути/URL) или null. Назначение - преобразовать любое значение поля изображения ($raw) в пару [локальный путь|null, полный URL|null].
+     */
     protected function resolveImage(string|null $raw): array
     {
         if (! $raw) {
@@ -15,53 +23,57 @@ class ProductResource extends JsonResource
 
         $raw = trim((string) $raw);
 
-        // full URL
+        // Полный URL (внешняя ссылка): if (preg_match('#^https?://#i', $raw)) { return [null, $raw]; } Если $raw начинается с "http://" или "https://", считаем что это уже полный URL и возвращаем [null, $raw].
         if (preg_match('#^https?://#i', $raw)) {
             return [null, $raw];
         }
 
-        // already an images path (public/images/...)
+        // путь уже внутри папки images: (public/images/...) , убираем ведущий слэш и возвращаем путь и полный URL через url($clean).
         if (preg_match('#(^/?images/)|(/images/)#i', $raw)) {
             $clean = ltrim($raw, '/');
             return [$clean, url($clean)];
         }
 
-        // normalize potential storage or public-relative paths
+        // очистка возможных префиксов storage/ или ведущих дефисов: $clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw)); $rel = trim($clean, '/'); Убираем повторяющиеся префиксы "storage/" и ведущие минусы, затем обрезаем слэши
         $clean = preg_replace('#^/?(?:storage/)+#', '', preg_replace('#^-+#', '', $raw));
         $rel = trim($clean, '/');
 
+        //Если после очистки ничего не осталось: if (! $rel) { return [null, null]; } Если $rel пустой — возвращаем [null, null]
         if (! $rel) {
             return [null, null];
         }
 
-        // 1) if file exists under public/<rel>, prefer that
+        // проверяем, есть ли файл в директории public/<rel> на сервере. Если есть — возвращаем путь и URL.
         if (file_exists(public_path($rel))) {
             return [$rel, url($rel)];
         }
 
-        // 2) if file exists under public/images/<rel>, prefer that
+        //Иначе пробуем public/images/<rel>: $inImages = 'images/' . ltrim($rel, '/'); if (file_exists(public_path($inImages))) { return [$inImages, url($inImages)]; } Иногда путь указан без префикса images, но файл лежит в public/images/. Проверяем этот вариант и возвращаем соответствующий путь/URL, если найден
         $inImages = 'images/' . ltrim($rel, '/');
         if (file_exists(public_path($inImages))) {
             return [$inImages, url($inImages)];
         }
 
-        // 3) fallback to storage URL (public/storage/<rel>)
+        //Иначе пробуем public/images/<rel>: $inImages = 'images/' . ltrim($rel, '/'); if (file_exists(public_path($inImages))) { return [$inImages, url($inImages)]; } Иногда путь указан без префикса images, но файл лежит в public/images/. Проверяем этот вариант и возвращаем соответствующий путь/URL, если найден
         return [$rel, url('/storage/' . $rel)];
     }
 
+
+
+
     public function toArray($request)
     {
+
+        //Нормализует значения полей img и img_thumb в пару [локальный путь, полный URL] через вспомогательный метод resolveImage.
         [$imgPath, $imgUrl] = $this->resolveImage($this->img ?? null);
         [$thumbPath, $thumbUrl] = $this->resolveImage($this->img_thumb ?? null);
 
+        //Подбирает символ валюты по коду (USD/RUB/EUR/GBP). Если код неизвестен — возвращает сам код. Если currency отсутствует — null
         $currencyMap = ['USD' => '$', 'RUB' => '₽', 'EUR' => '€', 'GBP' => '£'];
         $currencySymbol = $this->currency ? ($currencyMap[strtoupper($this->currency)] ?? $this->currency) : null;
 
-        // --- active discount (nullable) ---
-        // try to get discount object consistently
+        // Поиск активной скидки (activeDiscount)
         $activeDiscount = null;
-
-        // prefer helper if exists
         if (method_exists($this->resource, 'getActiveDiscountObject')) {
             $activeDiscount = $this->resource->getActiveDiscountObject();
         } elseif ($this->relationLoaded('activeDiscount')) {
@@ -94,12 +106,12 @@ class ProductResource extends JsonResource
             ];
         }
 
-        // final_price prefer accessor, fallback to price_after
         $finalPrice = $this->resource->final_price ?? null;
         if ($finalPrice === null && $priceAfter !== null) {
             $finalPrice = (float)$priceAfter;
         }
 
+        // формирование итогового массива (ответа)
         return [
             'id' => $this->id,
             'title' => $this->title,
