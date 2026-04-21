@@ -46,12 +46,7 @@ class Discount extends Model {
         return true;
     }
 
-    /**
- * Calculate price after discount.
- *
- * @param  float|int|string|null  $originalPrice
- * @return float|null  Price after discount rounded to 2 decimals, or null if cannot compute
- */
+
 public function priceAfter($originalPrice): ?float
 {
     // validate original price (DB DECIMAL may come as string)

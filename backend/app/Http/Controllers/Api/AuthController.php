@@ -12,11 +12,15 @@ use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use Illuminate\Support\Facades\Cookie;
 
+//реализует регистрацию, вход, выход и получение текущего пользователя для API (stateful через сессии + опционально выдача personal token). Поддерживает как cookie‑based flow (Sanctum/web sessions), так и опциональную выдачу personal access token для внешних клиентов.
+
 class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        // метод объекта Request, выбирает из всего запроса только эти ключи, формирует массив
         $data = $request->only('name', 'email', 'password', 'password_confirmation', 'create_token');
+
 
         $validator = Validator::make($data, [
             'name' => 'required|string',
@@ -43,7 +47,7 @@ class AuthController extends Controller
 
             // Выполняет аутентификацию пользователя в рамках session-based (серверной) модели. Помечает текущую сессию как принадлежащую этому пользователю и сохраняет его идентификатор (user_id) в сессионных данных.
             //После этого в последующих запросах пользователь считается аутентифицированным (Auth::check() вернёт true, Auth::user() вернёт объект пользователя), пока сессия действительна.
-            Auth::login($user);
+            Auth::login($user);// устанавливает сессию
             // регенерирует id сессии для защиты от session fixation
             $request->session()->regenerate();
 
@@ -100,25 +104,25 @@ class AuthController extends Controller
         if (! Auth::attempt($credentials)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-        // при успешном входе регенерируем сессию (session fixation защита) - новый сесионный кукки.
+        // при успешном входе регенерирует сессию (session fixation защита) - новый сесионный кукки.
         $request->session()->regenerate();
 
         $request->session()->save();
-        // получаем текущего аутентифицированного пользователя и прячем password/remember_token.
+        // получает текущего аутентифицированного пользователя и прячет password/remember_token.
         $user = Auth::user();
         /** @var \App\Models\User $user */
         $response = [
             'user' => $user->makeHidden(['password', 'remember_token']),
         ];
 
-        // опционально создаём персональный token(мобильные приложения, когда не используются сессии
+        // опционально создаёт персональный token(мобильные приложения, когда не используются сессии
         if ($request->boolean('create_token') || $request->input('create_token') === 'true') {
             if (method_exists($user, 'createToken')) {
                 $token = $user->createToken('api-token')->plainTextToken;
                 $response['token'] = $token;
             }
         }
-        // возвращаем данные пользователя (и, возможно, токен) с HTTP 200 OK.
+        // возвращает данные пользователя (и, возможно, токен) с HTTP 200 OK.
         return response()->json($response, 200);
     }
 
@@ -132,10 +136,10 @@ class AuthController extends Controller
             Log::warning('Logout issue: ' . $e->getMessage());
         }
 
-        // поставить в очередь удаление куки (Set-Cookie с истёкшей датой)
+        // поставит в очередь удаление куки (Set-Cookie с истёкшей датой)
         Cookie::queue(Cookie::forget('XSRF-TOKEN'));
 
-        // Явное формирование истёкшей laravel_session куки с теми же атрибутами, что в config/session.php,
+        // Явное формирование истекшей laravel_session куки с теми же атрибутами, что в config/session.php,
         // чтобы гарантированно удалить session cookie у клиента (включая httponly)
         $expiredSession = Cookie::make(
             config('session.cookie', 'laravel_session'),
@@ -155,13 +159,13 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        // получаем текущего аутентифицированного пользователя
+        // получает текущего аутентифицированного пользователя
         $user = $request->user();
         // если неаутентифицирован — 401
         if (! $user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
-        // возвращается информацию о пользователе (безопасно - без полей password и remember_token) с HTTP 200
+        // возвращается информация о пользователе (безопасно - без полей password и remember_token) с HTTP 200
         return response()->json($user->makeHidden(['password', 'remember_token']), 200);
     }
 

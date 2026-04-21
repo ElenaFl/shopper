@@ -7,7 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class CategoryResource extends JsonResource
 {
     /**
-     * Публичная сериализация категории.
+     * Публичная сериализация категории (возвращает результат контроллера в JSON-формате).
      */
     public function toArray($request)
     {
