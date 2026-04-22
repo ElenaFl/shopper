@@ -4,8 +4,14 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * CommentResource - используется для преобразования модели в JSON‑ответ.
+ */
+
 class CommentResource extends JsonResource
 {
+
+    // формирует сериализованный массив, который затем превратится в JSON для API‑ответа
     public function toArray($request)
     {
         return [

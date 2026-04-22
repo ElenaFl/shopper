@@ -4,6 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * ChatMessage - модель сообщения в чат‑сессии
+ */
+
 class ChatMessage extends Model
 {
     protected $fillable = ['session_id','user_id','role','content','meta'];
@@ -12,6 +16,7 @@ class ChatMessage extends Model
         'meta' => 'array',
     ];
 
+    //  связь «сообщение принадлежит сессии»
     public function session()
     {
         return $this->belongsTo(ChatSession::class, 'session_id');

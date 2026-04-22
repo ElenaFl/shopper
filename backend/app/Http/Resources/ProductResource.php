@@ -6,7 +6,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use \App\Http\Resources\ReviewResource;
 
 /**
- * ProductResource превращает модель Product в массив/JSON для API. Здесь производится нормализация изображений, расчёт итоговой цены со скидкой, формирование полезной структуры полей и условный вывод связанных данных (reviews, category)
+ * ProductResource превращает модель Product в массив/JSON для API. Здесь производится нормализация изображений, расчёт итоговой цены со скидкой, формирование  структуры полей и условный вывод связанных данных (reviews, category) -- какие поля с какими ключами будут отданы по API
  */
 
 class ProductResource extends JsonResource

@@ -9,6 +9,11 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * IncrementPostViews увеличивает поле views в таблице products для заданного productId posts
+ */
+
+
 class IncrementProductViews implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;

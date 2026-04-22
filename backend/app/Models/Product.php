@@ -81,16 +81,16 @@ class Product extends Model
                     ->limit($limit);
     }
 
-  // relation: all discounts for product (may be empty)
-public function discounts()
-{
-    return $this->hasMany(\App\Models\Discount::class, 'product_id');
-}
+    // отношение: все скидки на товар (могут быть пустыми)
+    public function discounts()
+    {
+        return $this->hasMany(Discount::class, 'product_id');
+    }
 
-// hasOne отношение: все скидки на товар (могут быть пустыми) hasOne означает, что ожидается не более одной подходящей записи (в данном контексте — одна активная скидка). Возвращается объект отношения
-public function activeDiscount()
-{
-    return $this->hasOne(Discount::class, 'product_id')
+    // hasOne отношение: все скидки на товар (могут быть пустыми) hasOne означает, что ожидается не более одной подходящей записи (в данном контексте — одна активная скидка). Возвращается объект отношения
+    public function activeDiscount()
+    {
+        return $this->hasOne(Discount::class, 'product_id')
         //учитывать только записи, у которых поле active = true (только активные скидки).
         ->where('active', true)
         // скидка считается начавшейся, если поле starts_at пусто (NULL) или значение starts_at меньше либо равно текущему времени now()
@@ -101,7 +101,7 @@ public function activeDiscount()
         ->where(function ($q) {
             $q->whereNull('ends_at')->orWhere('ends_at', '>=', now());
         });
-}
+    }
 
     // аксессор: final_price
     public function getFinalPriceAttribute()
@@ -118,7 +118,7 @@ public function activeDiscount()
         return $after === null ? (float) $this->price : $after;
     }
 
-    // optionally: expose discount percent computed
+    // выставляется рассчитанный процент скидки
     public function getDiscountPercentAttribute()
     {
         //Пытаемся получить текущую активную скидку: если relation activeDiscount заранее загружена (eager-loaded), используем её без дополнительных запросов.Иначе выполняем запрос activeDiscount()->first() для получения первой подходящей записи из БД.

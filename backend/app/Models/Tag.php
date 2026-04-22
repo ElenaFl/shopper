@@ -5,6 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+/**
+ * Модель Tag —  Eloquent‑модель для тегов
+ */
+
 class Tag extends Model
 {
     protected $fillable = ['name', 'slug'];
@@ -18,6 +22,7 @@ class Tag extends Model
         });
     }
 
+    // Связь posts(): belongsToMany с моделью Post через таблицу post_tag (многие‑ко‑многим)
     public function posts()
     {
         return $this->belongsToMany(Post::class, 'post_tag');

@@ -9,15 +9,20 @@ use App\Models\Review;
 use App\Http\Resources\ProductResource;
 use App\Http\Resources\ReviewResource;
 
+/**
+ * ReviewController  работает с отзывами о продукте: index (список), store (создать отзыв), destroy (удалить отзыв).
+* Использует Eloquent модели Product и Review и ресурсы ProductResource / ReviewResource.
+ */
+
 class ReviewController extends Controller
 {
 
     public function index(Product $product)
     {
-        // Получаем отзывы, при необходимости eager-load связанного пользователя
+        // получает отзывы, связанные с пользователем
         $reviews = $product->reviews()->with('user')->orderByDesc('created_at')->get();
 
-        // Возвращаем формат { data: [...] } — совместим с фронтом, который использует json.data ?? json
+        // возвращает формат { data: [...] } — совместим с фронтом, который использует json.data ?? json
         return response()->json(['data' => $reviews]);
     }
 
@@ -40,13 +45,16 @@ class ReviewController extends Controller
             'comment'    => $data['comment'] ?? null,
         ]);
 
-        // Обновляем агрегаты на модели продукта и сохраняем
+        // обновляет агрегаты на модели продукта и сохраняем
+        // выполняет запрос к БД, который считает количество записей в связанной таблице reviews для данного продукта, и присваивает это значение полю reviews_count модели Product (поле reviews_count  хранит агрегированное количество отзывов для быстрого доступа,избегая выполнения COUNT при каждом отображении)
         $product->reviews_count = $product->reviews()->count();
+        // вычисляет среднее значение поля rating по всем отзывам продукта (SQL AVG), округляет результат до 2 знаков и присваивает полю rating модели Product.
         $product->rating = round($product->reviews()->avg('rating'), 2);
+        //сохраняет изменения модели $product в БД
         $product->saveQuietly();
 
 
-        // Пересчитать popularity score, если есть
+        // пересчитать popularity score
         if (method_exists($product, 'recomputePopularityScore')) {
             $product->recomputePopularityScore();
         }
@@ -88,7 +96,7 @@ class ReviewController extends Controller
         $product->rating = round($product->reviews()->avg('rating') ?? 0, 2);
         $product->saveQuietly();
 
-        // Optionally recompute popularity
+        // Пересчитать popularity score
         if (method_exists($product, 'recomputePopularityScore')) {
             $product->recomputePopularityScore();
             $product->saveQuietly();

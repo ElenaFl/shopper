@@ -6,7 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Carbon;
 
+/**
+ * Discount
+ * Модель скидки для товара.
+ * Параметры: product_id|sku, type (percent|fixed), value, currency, active, starts_at, ends_at, note.
+ * Используется для вычисления итоговой цены (priceAfter) и проверки активности скидки (isActive). */
+
 class Discount extends Model {
+
     use HasFactory;
 
     protected $fillable = [
@@ -28,57 +35,65 @@ class Discount extends Model {
         'ends_at' => 'datetime',
         ];
 
-        public function isActive(): bool
-        {
-            if (! $this->active) {
-                return false;
-            }
+    // проверяет, действительна ли скидка в текущий момент
+    public function isActive(): bool
+    {
+        if (! $this->active) {
+            return false;
+        }
 
-            $now = Carbon::now();
-            if ($this->starts_at && $now->lt($this->starts_at)) {
-                return false;
-            }
+        $now = Carbon::now();
+        if ($this->starts_at && $now->lt($this->starts_at)) {
+            return false;
+        }
 
-            if ($this->ends_at && $now->gt($this->ends_at)) {
-                return false;
-            }
+        if ($this->ends_at && $now->gt($this->ends_at)) {
+            return false;
+        }
 
         return true;
     }
 
+    // рассчитывает цену после применения скидки к исходной цене ($originalPrice)
+    public function priceAfter($originalPrice): ?float
+    {
+        if ($originalPrice === null) {
+            return null;
+        }
 
-public function priceAfter($originalPrice): ?float
-{
-    // validate original price (DB DECIMAL may come as string)
-    if ($originalPrice === null) {
-        return null;
+        if (!is_numeric($originalPrice)) {
+            return null;
+        }
+
+        $orig = (float) $originalPrice;
+
+        // значение скидки должно существовать и быть числовым($this - скидка попадает сюда из модели, так как метод вызывается на модели)
+        $valRaw = $this->value ?? null;
+        if ($valRaw === null || !is_numeric($valRaw)) {
+            return null;
+        }
+        $val = (float) $valRaw;
+
+        // определяется тип
+        $type = $this->type ? strtolower((string) $this->type) : 'fixed';
+
+        if ($type === 'percent') {
+            // value = 20 => 20%
+            $result = $orig * (1 - $val / 100);
+        } else {
+            // учитывается как фиксированная сумма скидки
+            $result = $orig - $val;
+        }
+
+        // неотрицательное, округляется до 2 знаков после запятой
+        $result = max(0, round($result, 2));
+
+        return $result;
     }
-    if (!is_numeric($originalPrice)) {
-        return null;
+
+    // обратная связь: скидка принадлежит продукту. // Позволяет получить родительский Product через $discount->product и использовать eager-loading/связки в Eloquent
+    public function product() {
+
+        return $this->belongsTo(Product::class, 'product_id');
     }
-    $orig = (float) $originalPrice;
-
-    // discount value must exist and be numeric
-    $valRaw = $this->value ?? null;
-    if ($valRaw === null || !is_numeric($valRaw)) {
-        return null;
-    }
-    $val = (float) $valRaw;
-
-    // decide type
-    $type = $this->type ? strtolower((string) $this->type) : 'fixed';
-
-    if ($type === 'percent') {
-        // value = 20 => 20%
-        $result = $orig * (1 - $val / 100);
-    } else {
-        // treat as fixed amount off
-        $result = $orig - $val;
-    }
-
-    // avoid negative and round to 2 decimals
-    $result = max(0, round($result, 2));
-
-    return $result;
-}
 }
