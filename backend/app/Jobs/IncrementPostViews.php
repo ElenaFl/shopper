@@ -10,6 +10,10 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Job инкрементирует счётчик просмотров для поста в таблице posts
+ */
+
 class IncrementPostViews implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;

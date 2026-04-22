@@ -3,11 +3,16 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Collection;
 use App\Http\Resources\CommentResource;
+
+/**
+ * Ресурс в PostResource. Назначение - преобразовать модель Post в формат, удобный и безопасный для отдачи через JSON в API, контролирует поля с какими ключами  будут отдаваться
+ */
 
 class PostResource extends JsonResource
 {
+
+    // нормализует строку пути к изображению, возвращает пару [relativePath|null, absoluteUrl|null]
     protected function resolveImage(?string $raw): array
     {
         if (! $raw) {
@@ -37,12 +42,12 @@ class PostResource extends JsonResource
         return [$relative, $absolute];
     }
 
+    // при отдаче API PHP‑массив будет преобразован в JSON и отправлен клиенту
     public function toArray($request)
     {
         [$imgPath, $imgUrl] = $this->resolveImage($this->img ?? null);
         [$thumbPath, $thumbUrl] = $this->resolveImage($this->img_thumb ?? null);
 
-        // ensure collections
         $tags = $this->relationLoaded('tags') ? ($this->tags ?? collect()) : collect();
         $comments = $this->relationLoaded('comments') ? ($this->comments ?? collect()) : collect();
 

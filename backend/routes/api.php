@@ -79,12 +79,14 @@ Route::middleware('web')->group(function () {
 
 });
 
-
+// чат бот
 Route::middleware(['web','auth:sanctum'])->group(function () {
     Route::post('/chat/sessions', [ChatController::class, 'createSession'])->middleware('auth:sanctum');
     Route::post('/chat/send', [ChatController::class, 'send'])->middleware('auth:sanctum');
     Route::get('/chat/sessions/{id}', [ChatController::class, 'session'])->middleware('auth:sanctum');
 });
+
+// чат виджет
 
 Route::middleware(['web','auth:sanctum', 'throttle:30,1'])->group(function () {
     Route::get('/chat/widget-state', [ChatWidgetController::class, 'getState'])->middleware('auth:sanctum');

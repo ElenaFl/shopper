@@ -4,11 +4,13 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Публичная сериализация категории (возвращает результат контроллера в JSON-формате).
+ */
+
 class CategoryResource extends JsonResource
 {
-    /**
-     * Публичная сериализация категории (возвращает результат контроллера в JSON-формате).
-     */
+
     public function toArray($request)
     {
         return [

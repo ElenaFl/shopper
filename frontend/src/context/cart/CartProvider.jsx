@@ -35,11 +35,37 @@ export const CartProvider = ({ children }) => {
     return Number.isNaN(n) ? null : n;
   };
 
+  function isAuthenticated() {
+    if (typeof document === "undefined" || !document.cookie) return false;
+    return (
+      document.cookie.includes("laravel_session=") ||
+      document.cookie.includes("laravel-session=") ||
+      document.cookie.includes("XSRF-TOKEN=")
+    );
+  }
+
   useEffect(() => {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
+      // strip snapshot to avoid saving heavy objects const safe = (cart || []).map(({ snapshot, ...keep }) => keep);
+
+      if (!isAuthenticated()) {
+        // Guest: persist cart so it survives reloads
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
+        } catch (e) {
+          console.error("CartProvider: save localStorage failed", e);
+        }
+      } else {
+        // Authenticated: don't persist optimistic or server-backed cart to localStorage.
+        // Also remove any leftover guest cart to avoid re-sending it on reload.
+        try {
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+        } catch (e) {
+          // ignore
+        }
+      }
     } catch (e) {
-      console.error("CartProvider: save localStorage failed", e);
+      console.error("CartProvider: save localStorage failed (outer)", e);
     }
   }, [cart]);
 

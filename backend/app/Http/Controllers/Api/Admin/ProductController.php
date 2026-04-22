@@ -12,29 +12,37 @@ use Intervention\Image\Facades\Image;
 use App\Http\Resources\ProductResource;
 use App\Models\Discount;
 
+/**
+ * ProductController
+ *
+ * Админ-контроллер для управления товарами: список (с пагинацией), создание, просмотр, обновление и удаление продуктов.
+ * Использует ресурсы (AdminProductResource / ProductResource) для формирования ответов, работает с изображениями и с сущностью Discount.
+ */
+
 class ProductController extends Controller
 {
+    // Формирует базовый запрос Product::query(), подгружает relations category и discounts, делает пагинацию по per_page и page из запроса.Возвращает коллекцию ProductResource через пагинатор.
     public function index(Request $request)
-{
-    // build base query (existing logic may include filters)
-    $query = Product::query();
+    {
+        $query = Product::query();
 
-    // (apply any existing admin filters/pagination here)
-    $perPage = $request->query('per_page', 15);
-    $page = $request->query('page', 1);
+        $perPage = $request->query('per_page', 15);
+        $page = $request->query('page', 1);
 
-    // eager-load discounts so resource can use them without extra queries
-    $query->with(['category', 'discounts']);
+        //  подгружает связи category и discounts
+        $query->with(['category', 'discounts']);
+        // делает пагинацию по per_page и page из запроса (показ 1 страницы)
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+       // возвращает коллекцию ProductResource через пагинатор
+        return ProductResource::collection($paginator);
+    }
 
-    return ProductResource::collection($paginator);
-}
-
+    // создаёт продукт через Product::create($data)
     public function store(Request $request)
     {
-        /** @param \Illuminate\Http\Request $request */
-        $user = auth()->user();
+        /** @var \App\Models\User|null $user */
+        $user = request()->user();
 
         if (! $user) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
@@ -59,7 +67,6 @@ class ProductController extends Controller
             'is_popular'  => 'nullable|boolean',
         ]);
 
-        // Accept either uploaded file OR a path (images/..., storage/..., full URL)
         if ($request->hasFile('img') && $request->file('img')->isValid()) {
             $file = $request->file('img');
             $original = preg_replace('/[^A-Za-z0-9-_.]/', '', $file->getClientOriginalName());
@@ -79,29 +86,25 @@ class ProductController extends Controller
 
         $product = Product::create($data);
 
-        // handle discount (optional)
-try {
-    $discountValue = $request->input('discount'); // could be null or string/number
-    $discountCurrency = $request->input('discount_currency') ?? $request->input('currency') ?? null;
-    if ($discountValue !== null && $discountValue !== '' && is_numeric($discountValue) && floatval($discountValue) > 0) {
-        // create discount as percent
-        Discount::create([
-            'product_id' => $product->id,
-            'sku' => $product->sku ?? $request->input('sku'),
-            'type' => 'percent',
-            'value' => number_format((float)$discountValue, 2, '.', ''), // store as decimal
-            'currency' => $discountCurrency,
-            'active' => true,
-            'starts_at' => $request->input('discount_starts_at') ?? null,
-            'ends_at' => $request->input('discount_ends_at') ?? null,
-            'note' => $request->input('discount_note') ?? null,
-        ]);
-    }
-} catch (\Throwable $e) {
-    // don't fail product creation on discount error; optionally return warning in response
-}
-
-
+        try {
+            $discountValue = $request->input('discount');
+            $discountCurrency = $request->input('discount_currency') ?? $request->input('currency') ?? null;
+            if ($discountValue !== null && $discountValue !== '' && is_numeric($discountValue) && floatval($discountValue) > 0) {
+                Discount::create([
+                    'product_id' => $product->id,
+                    'sku' => $product->sku ?? $request->input('sku'),
+                    'type' => 'percent',
+                    'value' => number_format((float)$discountValue, 2, '.', ''), // store as decimal
+                    'currency' => $discountCurrency,
+                    'active' => true,
+                    'starts_at' => $request->input('discount_starts_at') ?? null,
+                    'ends_at' => $request->input('discount_ends_at') ?? null,
+                    'note' => $request->input('discount_note') ?? null,
+                ]);
+            }
+        }
+        catch (\Throwable $e) {
+        }
 
         return (new AdminProductResource($product->load('category')))
             ->response()
@@ -109,16 +112,15 @@ try {
     }
 
     public function show(Product $product)
-{
-    // load relations including discounts
-    $product->load(['reviews.user', 'category', 'discounts']);
-    return new ProductResource($product);
-}
+    {
+        $product->load(['reviews.user', 'category', 'discounts']);
+
+        return new ProductResource($product);
+    }
 
     public function update(Request $request, Product $product)
     {
-        /** @var \App\Models\User|null $user */
-        $user = auth()->user();
+        $user = request()->user();
         if (! $user) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
@@ -141,9 +143,7 @@ try {
             'is_popular' => 'nullable|boolean',
         ]);
 
-        // Handle uploaded image (if any)
         if ($request->hasFile('img') && $request->file('img')->isValid()) {
-            // 1) Delete previous image if it resided in public/images
             if ($product->img && preg_match('#^(?:images/|/images/)#',  $product->img)) {
             $oldPath = public_path(ltrim($product->img, '/'));
             try {
@@ -151,10 +151,8 @@ try {
                     @unlink($oldPath);
                 }
             } catch (\Throwable $e) {
-                // do not fail update if deletion fails
             }
         }
-        // 2) If previous image was stored using storage disk (products/... or storage/...), delete from storage disk
         elseif ($product->img && preg_match('#^(?:products/|storage/|/storage/)#', $product->img)) {
             $old = ltrim(preg_replace('#^/?storage/#', '', $product->img), '/');
             try {
@@ -165,7 +163,6 @@ try {
             }
         }
 
-        // 3) Move uploaded file into public/images with a safe unique name
         $file = $request->file('img');
         $original = preg_replace('/[^A-Za-z0-9\-_\.]/', '', $file->getClientOriginalName());
         $name = time() . '-' . $original;
@@ -185,25 +182,21 @@ try {
                 ->save(public_path('images/' . $thumbName));
                 $data['img_thumb'] = 'images/' . $thumbName;
         } catch (\Throwable $e) {
-            // do not abort update because of image move failure; remove img from $data so it won't overwrite
             if (isset($data['img'])) {
                 unset($data['img']);
             }
         }
     } elseif (isset($data['img']) && is_string($data['img']) && trim($data['img']) === '') {
-        // If explicit empty string sent for img, ignore (keep current), or you may want to null it:
         unset($data['img']);
     }
 
     $product->update($data);
 
-    // handle discount upsert/delete
-try {
-    $discountValue = $request->input('discount'); // may be null/empty to remove
-    $discountCurrency = $request->input('discount_currency') ?? $request->input('currency') ?? null;
+    try {
+        $discountValue = $request->input('discount');
+        $discountCurrency = $request->input('discount_currency') ?? $request->input('currency') ?? null;
 
-    if ($discountValue !== null && $discountValue !== '' && is_numeric($discountValue) && floatval($discountValue) > 0) {
-        // upsert percent discount by product_id
+        if ($discountValue !== null && $discountValue !== '' && is_numeric($discountValue) && floatval($discountValue) > 0) {
         Discount::updateOrCreate(
             ['product_id' => $product->id],
             [
@@ -215,21 +208,22 @@ try {
                 'starts_at' => $request->input('discount_starts_at') ?? null,
                 'ends_at' => $request->input('discount_ends_at') ?? null,
                 'note' => $request->input('discount_note') ?? null,
-            ]
-        );
-    } else {
-        // remove discounts for this product (if any)
-        Discount::where('product_id', $product->id)->delete();
-    }
-} catch (\Throwable $e) {
-}
+            ]);
+        } else {
+            Discount::where('product_id', $product->id)->delete();
+        }
+        } catch (\Throwable $e) {
+        }
 
-    return new AdminProductResource($product->load('category'));
-}
+        return new AdminProductResource($product->load('category'));
+    }
 
     public function destroy(Product $product)
     {
-         /** @var \App\Models\User|null $user */
+        // получить текущего аутентифицированного пользователя
+        /**
+         * @var \App\Models\User|null $user / $user = auth()->user();
+         */
         $user = auth()->user();
         if (! $user) {
             return response()->json(['message' => 'Unauthenticated.'], 401);

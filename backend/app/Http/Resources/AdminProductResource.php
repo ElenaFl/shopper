@@ -4,6 +4,16 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * AdminProductResource
+ * Трансформер (JSON Resource) для админского API продукта.
+ * Формирует безопасный и удобный JSON‑ответ со следующими задачами:
+ * Нормализует изображение (локальный путь и публичный URL) через resolveImage().
+ * Определяет активную скидку (activeDiscount) в приоритетном порядке: relation loaded → relation query → перебор discounts.
+ * Вычисляет final_price: предпочитает $resource->final_price, иначе использует рассчитанную цену после скидки.
+ * Возвращает набор полей: id, title, sku, price, currency, final_price, discount, description, img/img_url, характеристики (weight, dimensions, colours, material), метрики (is_popular, sales_count, popularity_score), category (если загружена), timestamps.
+ */
+
 class AdminProductResource extends JsonResource
 {
     protected function resolveImage(string|null $raw): array
@@ -22,29 +32,30 @@ class AdminProductResource extends JsonResource
         return [$rel ?: null, $rel ? url('/storage/' . $rel) : null];
     }
 
-   public function toArray($request)
-{
-    [$imgPath, $imgUrl] = $this->resolveImage($this->img ?? null);
+    public function toArray($request)
+    {
+        [$imgPath, $imgUrl] = $this->resolveImage($this->img ?? null);
 
-    // Найти активную скидку — единоразово.
-    $activeDiscount = null;
-    if (method_exists($this, 'activeDiscount')) {
-        // activeDiscount defined as relation (hasOne) — try to use loaded relation first
-        if ($this->relationLoaded('activeDiscount')) {
-            $activeDiscount = $this->activeDiscount;
-        } else {
-            // if not loaded, attempt to fetch a matching active discount via model method (may perform query)
-            try {
-                $activeDiscount = $this->activeDiscount()->first();
-            } catch (\Throwable $e) {
-                $activeDiscount = null;
+        //ищет активную скидку.
+        $activeDiscount = null;
+        if (method_exists($this, 'activeDiscount')) {
+            // activeDiscount определен как отношение (hasOne) — сначала  будет использовать загруженное отношение
+            if ($this->relationLoaded('activeDiscount')) {
+                $activeDiscount = $this->activeDiscount;
+            } else {
+                // если не загружено, попытайтся получить соответствующую активную скидку с помощью метода model
+                try {
+                    $activeDiscount = $this->activeDiscount()->first();
+                } catch (\Throwable $e) {
+                    $activeDiscount = null;
+                }
             }
+        // иначе - если метод activeDiscount не существует, но загружена связь discounts (relation discounts): код берёт коллекцию $this->discounts (предположительно hasMany) и находит первую скидку, для которой isActive() возвращает true (если такой метод есть у модели скидки), либо использует булево поле active (если метода нет).
+        } elseif ($this->relationLoaded('discounts')) {
+            $activeDiscount = collect($this->discounts)->first(fn($d) => method_exists($d, 'isActive') ? $d->isActive() : ($d->active ?? false));
         }
-    } elseif ($this->relationLoaded('discounts')) {
-        $activeDiscount = collect($this->discounts)->first(fn($d) => method_exists($d, 'isActive') ? $d->isActive() : ($d->active ?? false));
-    }
 
-    // Prepare discount payload if present
+    // информация о скидках
     $discountPayload = null;
     $priceAfter = null;
     if ($activeDiscount) {
@@ -60,9 +71,9 @@ class AdminProductResource extends JsonResource
             'price_after' => $priceAfter !== null ? (float) $priceAfter : null,
         ];
     }
-
+    // строка безопасно получает цену продукта из модели и приводит её к числу с плавающей запятой или ставит null, если цена отсутствует
     $price = $this->price !== null ? (float) $this->price : null;
-    // prefer explicit final_price accessor if present, otherwise fall back to price_after from discount
+    // вычисляет окончательную (финальную) цену товара, отдавая приоритет уже вычисленному accessor'у final_price в ресурсе, а если его нет — подставляя цену после применённой скидки (priceAfter). В конце явно приводит результат к float, если он не null.
     $finalPrice = $this->resource->final_price ?? null;
     if ($finalPrice === null && $priceAfter !== null) {
         $finalPrice = (float) $priceAfter;
@@ -71,6 +82,7 @@ class AdminProductResource extends JsonResource
         $finalPrice = (float) $finalPrice;
     }
 
+    //возвращает массив значений в json-формате
     return [
         'id' => $this->id,
         'title' => $this->title,

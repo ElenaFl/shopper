@@ -7,12 +7,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Модель Comment - логика доступа к комментариям и ответам на них
+ */
+
 class Comment extends Model
 {
+    // включает мягкое удаление (soft deletes). При вызове $comment->delete() запись не удаляется физически, а в колонку deleted_at записывается отметка времени
     use SoftDeletes;
 
-    protected $dates = ['deleted_at'];
+    //позволяет «спрятать» комментарий, при этом сохранять запись в БД (чтобы, например, сохранять ответы или историю). поле deleted_at должно автоматически приводиться к типу 'datetime'.
+    protected $casts = ['deleted_at' => 'datetime'];
 
+    // какие атрибуты разрешены для массового присвоения
     protected $fillable = [
         'post_id',
         'user_id',
@@ -20,25 +27,25 @@ class Comment extends Model
         'parent_id',
     ];
 
-    // Post relation
+    // связь «комментарий принадлежит посту». Позволяет по комментарию получить пост $comment->post
     public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class);
     }
 
-    // User relation
+    // связь с автором комментария. Позволяет получить данные автора: $comment->user.
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    // parent comment
+    // отношение к родительскому комментарию (если это ответ). Возвращает единственную модель Comment или null.
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Comment::class, 'parent_id');
     }
 
-    // child replies
+    // связь «один ко многим» — дочерние комментарии (ответы). Сортирует ответы по времени создания по возрастанию
     public function children(): HasMany
     {
         return $this->hasMany(Comment::class, 'parent_id')->orderBy('created_at', 'asc');

@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+
+/**
+ * ChatWidgetController - управляет состоянием виджета чата для текущего пользователя(виден ли он)
+ */
 
 class ChatWidgetController extends Controller
 {
     // GET /api/chat/widget-state
+    // возвращает, доступен ли чат (enabled) и скрыт ли он для текущего пользователя (hidden). Для неавторизованных возвращает enabled:false, hidden:true
     public function getState(Request $request)
     {
         $user = $request->user();
@@ -21,7 +25,9 @@ class ChatWidgetController extends Controller
         ], 200);
     }
 
+
     // POST /api/chat/widget-state
+    // устанавливает флаг сокрытия виджета (hidden) для авторизованного пользователя; возвращает обновлённый флаг. Для неавторизованных возвращает 401.
     public function setState(Request $request)
     {
         $request->validate([

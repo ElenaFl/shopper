@@ -6,16 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Models\SavedItem;
 use Illuminate\Http\Request;
 
+/**
+ * SavedItemController -  управление списком сохранённых пользователем товаров (wishlist / saved items) через API (просмотр, добавление, удаление и синхронизация).
+ */
+
 class SavedItemController extends Controller {
+
     // GET /api/user/saved-items
+    // возвращает JSON с ключом data => коллекция элементов.
     public function index(Request $request) {
+
+     // проверяет аутентификацию и возвращает 401, если пользователь не авторизован.
         $user = $request->user();
         if (! $user) {
             return response()->json([
                 'message' => 'Unauthenticated'
             ], 401);
         }
-        // load saved items with product relation if exists
+       // получает все SavedItem для текущего пользователя, подгружая связь product (with('product')) и сортируя по created_at по убыванию.
         $items = SavedItem::where('user_id', $user->id)
             ->with('product')
             ->orderBy('created_at', 'desc')
@@ -24,8 +32,11 @@ class SavedItemController extends Controller {
         return response()->json(['data' => $items]);
     }
 
+
     // POST /api/user/saved-items
+    //  возвращает созданный/существующий элемент с HTTP 201
     public function store(Request $request) {
+
         $user = $request->user();
         if (! $user) {
             return response()->json([
@@ -37,7 +48,8 @@ class SavedItemController extends Controller {
             'product_id' => 'required|integer|exists:products,id',
             'meta' => 'nullable|array',
         ]);
-        // unique per user/product
+
+        // firstOrCreate: создаёт запись только если ещё не существует сочетание user_id + product_id (гарантирует уникальность на уровне приложения).
         $saved = SavedItem::firstOrCreate( [
             'user_id' => $user->id,
             'product_id' => $data['product_id']
@@ -47,12 +59,15 @@ class SavedItemController extends Controller {
             ]
         );
 
+        // загружает связь product
         $saved->load('product');
 
         return response()->json($saved, 201);
     }
 
+
     // DELETE /api/user/saved-items/{id}
+    // удаляет запись
     public function destroy(Request $request, $id) {
         $user = $request->user();
         if (! $user) {
@@ -61,6 +76,7 @@ class SavedItemController extends Controller {
             ], 401);
         }
 
+        // находит запись по id; если не существует — 404.
         $item = SavedItem::find($id);
 
         if (! $item) {
@@ -68,14 +84,16 @@ class SavedItemController extends Controller {
                 'message' => 'Not found'
                 ], 404);
         }
+
+        // проверяет право: запись должна принадлежать текущему пользователю;если нет — 403.
         if ($item->user_id !== $user->id) {
             return response()->json([
                 'message' => 'Forbidden'
                 ], 403);
         }
 
+        // выполняет delete() и возвращает сообщение Deleted (HTTP 200).
         $item->delete();
-
         return response()->json([
             'message' => 'Deleted'
         ]);
@@ -84,7 +102,9 @@ class SavedItemController extends Controller {
     // POST /api/user/saved-items/sync
     // Body: { product_ids: [1,2,3] } - merge guest -> user (idempotent)
 
+    // синхронизация списка сохранённого (например, после авторизации объединить сохранённое гостя с учётной записью). Операция идемпотентна.
     public function sync(Request $request) {
+
         $user = $request->user();
         if (! $user) {
             return response()->json([
@@ -92,12 +112,20 @@ class SavedItemController extends Controller {
             ], 401);
         }
 
+        // после validate в $data будет валидированный массив, например ['product_ids' => [1,2,3]].
         $data = $request->validate([
+            // product_ids обязателен и должен быть массивом
             'product_ids' => 'required|array',
+            // каждый элемент product_ids.* должен быть целым числом и соответствовать id существующего товара в таблице products
             'product_ids.*' => 'integer|exists:products,id',
         ]);
 
+        // инициализация пустого массива
         $created = [];
+
+        // удаление дубликатов и создание записей
+        // array_unique убирает повторяющиеся id в переданном массиве, чтобы не пытаться создать одну и ту же пару несколько раз.
+        //firstOrCreate ищет запись SavedItem с условиями в первом массиве (user_id + product_id). Если запись найдена — возвращает её. Если не найдена — создаёт новую запись с полями из первого массива плюс дополнительные поля из второго массива (здесь meta => null).
         foreach (array_unique($data['product_ids']) as $pid) {
             $saved = SavedItem::firstOrCreate( [
                 'user_id' => $user->id,
@@ -107,13 +135,17 @@ class SavedItemController extends Controller {
                 ]
             );
 
+            // добавление элемента в массив $created[] = $saved
+            // в результате $created будет содержать коллекцию SavedItem (существующих или новых)
             $created[] = $saved;
         }
 
+        // $items получает все SavedItem текущего пользователя, подгружая связанных Product через with('product').
         $items = SavedItem::where('user_id', $user->id)
             ->with('product')
             ->get();
 
+        // список возвращается клиенту
         return response()->json(['data' => $items]);
     }
 }

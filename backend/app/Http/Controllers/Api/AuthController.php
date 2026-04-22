@@ -110,7 +110,6 @@ class AuthController extends Controller
         $request->session()->save();
         // получает текущего аутентифицированного пользователя и прячет password/remember_token.
         $user = Auth::user();
-        /** @var \App\Models\User $user */
         $response = [
             'user' => $user->makeHidden(['password', 'remember_token']),
         ];

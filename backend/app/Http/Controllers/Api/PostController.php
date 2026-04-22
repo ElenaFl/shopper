@@ -8,6 +8,10 @@ use App\Models\Post;
 use App\Http\Resources\PostResource;
 use App\Jobs\IncrementPostViews;
 
+/**
+ * Контроллер для блога; index — список постов с фильтрацией (по тегу), show — показать один пост
+ */
+
 class PostController extends Controller
 {
     // GET /api/blog/posts
@@ -15,6 +19,7 @@ class PostController extends Controller
     {
         $query = Post::query()->with(['author', 'tags']);
 
+        // на данный момент не реализован
         if ($request->filled('search')) {
             $s = trim(mb_substr((string)$request->query('search'), 0, 200));
             $query->where(function ($q) use ($s) {
@@ -24,31 +29,44 @@ class PostController extends Controller
             });
         }
 
+        // вернёт только те посты, у которых есть tag со slug = $tag
+        // filled() — проверяет: присутствует ли в запросе параметр и не пустое ли у него значение
         if ($request->filled('tag')) {
             $tag = (string) $request->query('tag');
+            // выбирает только те родительские записи, у которых есть связанные записи, удовлетворяющие заданному условию
             $query->whereHas('tags', function ($q) use ($tag) {
                 $q->where('slug', $tag);
             });
         }
 
+        // список опубликованных постов, отсортированных от самых новых к старым
         $items = $query->whereNotNull('published_at')->orderByDesc('published_at')->get();
-
+        // сериализует коллекцию  постов в JSON при возврате ответа
         return PostResource::collection($items);
     }
 
-    // GET /api/blog/posts/{post} (by id)
     public function show(Post $post)
-    {
-        // диспатчим job асинхронно (без ожидания)
-        IncrementPostViews::dispatch($post->id);
-        // increment views atomically
-        $post->increment('views');
+{
+    // Асинхронно поставить задачу (job) для дополнительной обработки просмотра (лог, аналитика и т.д.) --- пока не используется
+    IncrementPostViews::dispatch($post->id);
 
-        // load author and comments with their users and tags
-        $post->load(['author', 'comments' => function($q) {
+    //  увеличить счётчик просмотров в БД (UPDATE posts SET views = views + 1)
+    $post->increment('views');
+
+    // Подгрузить связанные сущности:
+    // - author: автор поста
+    // - comments: только корневые комментарии (parent_id IS NULL), а для них eager-load:
+    //     - user: автор комментария
+    //     - children.user: ответы на комментарии и их авторы
+    // (Это предотвращает N+1 запросы при сериализации)
+    $post->load([
+        'author',
+        'comments' => function($q) {
             $q->whereNull('parent_id')->with(['user','children.user']);
-        }, 'comments.user']);
+        },
+    ]);
 
-        return new PostResource($post);
-    }
+    // Вернуть сериализованный ресурс поста для API
+    return new PostResource($post);
+}
 }

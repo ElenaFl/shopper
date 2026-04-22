@@ -249,10 +249,19 @@ class CartController extends Controller
         // делает один запрос в БД и получает коллекцию Product для всех нужных id; keyBy('id') — превращает коллекцию в ассоциативный набор, где ключ — id товара, а значение — объект Product. То есть $products->get(123) вернёт Product с id 123.
         $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
 
-        $payloadHash = md5(json_encode($incoming)); $cacheKey = "cart_sync:{$user->id}:{$payloadHash}";
+        // генерация хеша для входного payload(входные данные) и защита от повторной обработки
+        // создаём стабильный хэш SHA-256 для входного массива $incoming
+        // формируем ключ кеша по user_id + payloadHash и пытаемся добавить его в кеш на 15 с.
+        $payloadHash = hash('sha256', json_encode($incoming, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        //  ключ для предотвращения дублей
+        $cacheKey = "cart_sync:{$user->id}:{$payloadHash}";
+        // - Cache::add возвращает false, если такой ключ уже существует (т.е. почти идентичный sync уже обрабатывается или был только что обработан). В таком случае возвращаем текущую корзину без повторной обработки, чтобы избежать дублирования quantity и лишней нагрузки на БД. Причины и поведение: простая и эффективная защита от повторных/параллельных одинаковых sync-запросов (например, повторный POST при перезагрузке, retry или параллельные вызовы). TTL 15 с покрывает короткое окно, в котором клиент обычно будет повторять запрос
+        if (!Cache::add($cacheKey, true, 15)) {
+            $items = CartItem::where('user_id', $user->id)->orderBy('created_at')->get();
 
-if (!Cache::add($cacheKey, true, 15)) { $items = CartItem::where('user_id', $user->id)->orderBy('created_at')->get(); \Log::info('cart.sync.duplicate_ignored', ['user_id' => $user->id, 'payloadHash' => $payloadHash]); return response()->json(['data' => $items, 'message' => 'Duplicate sync ignored'], 200); }
-        // начинаем транзакцию: все изменения внутри будут атомарны (целостность изменений — либо все операции внутри выполняются полностью (commit), либо ни одна не применяется (rollback))
+            return response()->json(['data' => $items, 'message' => 'Duplicate sync ignored'], 200);
+        }
+        // транзакция
         DB::transaction(function () use ($incoming, $user, $products) {
             //перебираем сгруппированные элементы внутри транзакции
             foreach ($incoming as $it) {
@@ -362,4 +371,8 @@ if (!Cache::add($cacheKey, true, 15)) { $items = CartItem::where('user_id', $use
         return $p ? $p->price : null;
     }
 }
+
+
+
+
 
