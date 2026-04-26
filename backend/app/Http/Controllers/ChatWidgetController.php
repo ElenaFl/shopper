@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
 /**
- * ChatWidgetController - управляет состоянием виджета чата для текущего пользователя(виден ли он)
+ * Class ChatWidgetController
+ *
+ * Контроллер управляет состоянием виджета чата для текущего пользователя(виден ли он)
  */
 
 class ChatWidgetController extends Controller

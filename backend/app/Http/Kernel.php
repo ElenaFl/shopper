@@ -18,6 +18,8 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
 class Kernel extends HttpKernel
 {
     /**
+     * Class Kernel
+     *
     * управляет middleware приложения:
     * protected $middleware — глобальные middleware, выполняемые для каждого HTTP-запроса.
     * protected $middlewareGroups — группы middleware (обычно 'web' и 'api'), которые применяются к маршрутам через группу.

@@ -7,7 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 
 /**
- * Класс RouteServiceProvider настраивает маршрутизацию и лимиты запросов для приложения.
+ * Class RouteServiceProvider
+ *
+ * Настраивает маршрутизацию и лимиты запросов для приложения.
  */
 
 class RouteServiceProvider extends ServiceProvider {

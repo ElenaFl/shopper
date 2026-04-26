@@ -118,7 +118,6 @@ export const AuthProvider = ({ children }) => {
     if (!res.ok) await handleResponseErrors(res);
     const serverUser = await fetchUser();
 
-    // mark merge pending only if guest cart exists
     try {
       const raw = localStorage.getItem("shopper_cart");
       if (raw) {
@@ -126,7 +125,7 @@ export const AuthProvider = ({ children }) => {
         window.dispatchEvent(new CustomEvent("cart:mergePending"));
       }
     } catch (e) {
-      // ignore
+      //
     }
 
     return serverUser;
@@ -178,7 +177,6 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error("logout error", err);
     } finally {
-      // aggressive client cleanup: clear user and cart state
       setUser(null);
 
       try {
@@ -192,7 +190,6 @@ export const AuthProvider = ({ children }) => {
           window.dispatchEvent(new CustomEvent("cart:cleared:client"));
         }
 
-        // optionally clear server cart for this user (if requested and API supports)
         if (
           clearServerCart &&
           typeof deleteAllServerCartForUser === "function"
@@ -204,7 +201,6 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // remove any merge flag
         try {
           sessionStorage.removeItem("shopper_merge_pending");
         } catch (e) {}
@@ -216,7 +212,6 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (!user) return;
-    // Prevent double invocation (e.g. React StrictMode or duplicate effects)
     if (syncCalledRef.current) {
       console.log("AuthProvider: sync already running, skipping duplicate");
       return;
@@ -225,7 +220,6 @@ export const AuthProvider = ({ children }) => {
 
     (async () => {
       try {
-        // Try to sync guest cart first (if CartContext provides syncGuestToServer)
         if (typeof syncGuestToServer === "function") {
           try {
             console.log("AuthProvider: calling syncGuestToServer");
@@ -239,7 +233,6 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // Then always try to fetch the fresh server cart and apply it
         if (typeof fetchServerCart === "function") {
           try {
             const serverCart = await fetchServerCart();

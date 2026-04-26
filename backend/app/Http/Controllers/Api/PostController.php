@@ -9,7 +9,16 @@ use App\Http\Resources\PostResource;
 use App\Jobs\IncrementPostViews;
 
 /**
- * Контроллер для блога; index — список постов с фильтрацией (по тегу), show — показать один пост
+ * Class PostController
+ *
+ * Публичный API для работы с постами блога.
+ *
+ * Поведение:
+ * - index: возвращает список опубликованных постов с опциональной фильтрацией по тегу и поиском.
+ * - show: возвращает один пост, увеличивает счётчик просмотров (синхронно и через Job) и подгружает отношения.
+ *
+ * Ответы:
+ * - 200 OK с ресурсами PostResource.
  */
 
 class PostController extends Controller

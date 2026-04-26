@@ -7,7 +7,18 @@ use App\Models\SavedItem;
 use Illuminate\Http\Request;
 
 /**
- * SavedItemController -  управление списком сохранённых пользователем товаров (wishlist / saved items) через API (просмотр, добавление, удаление и синхронизация).
+ * Class SavedItemController
+ *
+ * API для управления списком сохранённых пользователем товаров (wishlist).
+ *
+ * Поведение:
+ * - index: вернуть все сохранённые элементы текущего пользователя (with product).
+ * - store: добавить элемент (firstOrCreate) и вернуть его.
+ * - destroy: удалить элемент, только если он принадлежит пользователю.
+ * - sync: синхронизировать список product_ids (идемпотентно), вернуть актуальный список.
+ *
+ * Ответы:
+ * - 200 OK, 201 Created, 401/403/404/422 при ошибках.
  */
 
 class SavedItemController extends Controller {

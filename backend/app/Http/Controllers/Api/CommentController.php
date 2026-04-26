@@ -9,7 +9,9 @@ use App\Models\Comment;
 use App\Http\Resources\CommentResource;
 
 /**
- * CommentController - контроллер API, отвечающий за работу с комментариями к постам
+ * Class CommentController
+ *
+ * Контроллер API, отвечающий за работу с комментариями к постам
  * Требует авторизации (middleware auth:sanctum) для операций, где это нужно (публикация/удаление комментариев).
  * Получение комментариев (index)
  * Возвращает список комментариев для конкретного поста.

@@ -6,6 +6,13 @@ use Illuminate\Support\ServiceProvider;
 use App\Models\Review;
 use App\Observers\ReviewObserver;
 
+/**
+ *
+ * Class AppServiceProvider
+ *
+ * В методе boot регистрирует наблюдатель ReviewObserver для модели Review
+ */
+
 
 class AppServiceProvider extends ServiceProvider
 {

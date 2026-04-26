@@ -8,7 +8,9 @@ use App\Models\Discount;
 use App\Models\Review;
 
 /**
- * Модель Product
+ * Class Product
+ *
+ * Eloquent‑модель товара.
  */
 
 class Product extends Model

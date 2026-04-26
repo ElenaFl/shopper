@@ -7,7 +7,9 @@ use App\Models\User;
 
 
 /**
- * Модель SavedItem - содержит логику работы с сохраненными товарами
+ * Class SavedItem
+ *
+ * Eloquent‑модель содержит логику работы с сохраненными товарами
  */
 
 class SavedItem extends Model {

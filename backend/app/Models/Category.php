@@ -5,6 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+/**
+ * Class Category
+ *
+ * Eloquent‑модель категорий товаров.
+ * Хранит поля title и slug, обеспечивает связь hasMany с Product и предоставляет утилиту generateUniqueSlug() для генерации уникального URL‑дружелюбного slug (с опцией игнорирования текущего id при обновлении). Полезна для управления категориями в админке и вывода их в публичном API
+ */
+
 class Category extends Model
 {
     // разрешённые для массового заполнения поля (через методы create(), save())

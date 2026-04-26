@@ -31,7 +31,6 @@ a.active {
   color: #a18a68;
 }
 
-/* Search input base style */
 .search-input {
   background-color: white;
   transition:
@@ -40,14 +39,12 @@ a.active {
   -webkit-text-fill-color: inherit;
 }
 
-/* Focus style: soft gold background and subtle outline */
 .search-input:focus {
   background-color: #f6e6b5; /* мягкий золотистый */
   outline: none;
   box-shadow: 0 0 0 4px rgba(161, 138, 104, 0.12);
 }
 
-/* WebKit autofill override (Chrome, Edge, Safari) */
 input.search-input:-webkit-autofill,
 input.search-input:-webkit-autofill:hover,
 input.search-input:-webkit-autofill:focus,
@@ -63,7 +60,6 @@ select.search-input:-webkit-autofill:focus {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* Firefox autofill */
 input.search-input:-moz-autofill,
 textarea.search-input:-moz-autofill,
 select.search-input:-moz-autofill {
@@ -72,12 +68,10 @@ select.search-input:-moz-autofill {
   -moz-text-fill-color: #000 !important;
 }
 
-/* Optional: when using browser-suggested value (history) force same gold */
 .search-input:-internal-autofill-selected {
   background-color: #f6e6b5 !important;
 }
 
-/* ---- Built-in clear (WebKit) styling: recolor the native cancel button ---- */
 input.search-input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   width: 18px;
@@ -86,25 +80,21 @@ input.search-input::-webkit-search-cancel-button {
   cursor: pointer;
   background: transparent;
   border: none;
-  /* SVG data-uri with dark-gold stroke: #A18A68 --> %23A18A68 */
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'><path d='M6 6 L18 18 M6 18 L18 6' stroke='%23A18A68' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
   background-position: center;
   opacity: 0.95;
 }
 
-/* Hover/active */
 input.search-input::-webkit-search-cancel-button:hover {
   opacity: 1;
   transform: scale(1.05);
 }
 
-/* Ensure autofill doesn't override cancel button */
 input.search-input:-webkit-autofill::-webkit-search-cancel-button {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'><path d='M6 6 L18 18 M6 18 L18 6' stroke='%23A18A68' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 
-/* Custom clear SVG styling (if using the custom clear button) */
 .search-clear path {
   stroke: #a18a68; /* тёмно-золотистый */
   transition: stroke 150ms ease;
@@ -115,9 +105,6 @@ input.search-input:-webkit-autofill::-webkit-search-cancel-button {
 .search-clear:active path {
   stroke: #7f6b4e; /* чуть темнее при ховере */
 }
-
-/* Hide native cancel if you want to rely only on custom clear: uncomment next line */
-/* input.search-input::-webkit-search-cancel-button { display: none; } */
 
 .shadow-bottom {
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
@@ -150,22 +137,7 @@ counter-button:active {
 
 .card-wrapper {
   animation: fadeIn 0.3s ease-out;
-  /* opacity: 0;
-  transform: translateY(20px) scale(0.98);
-  transition: opacity 1s transform 5s;
-  will-change: opacity, transform; */
 }
-
-/* .card-wrapper.show {
-  opacity: 1;
-  transition-duration: 400ms;
-  transform: translateY(0) scale(1);
-} */
-
-/* .card-wrapper .card-inner {
-  backface-visibility: hidden;
-  transform-origin: center;
-} */
 
 @keyframes fadeIn {
   from {
@@ -195,30 +167,12 @@ counter-button:active {
 /* мягкий, светлый фон (уменьшена насыщенность) */
 @keyframes highlightGold {
   0% {
-    /* background-color: rgba( */
-    /* 230,
-      223,
-      210,
-      0.407
-    ); 
-    box-shadow: 0 0 0 rgb(248, 246, 241); */
   }
   30% {
-    /* background-color: rgba(255, 252, 240, 0.408); */
-    /* box-shadow: 0 8px 20px rgba(255, 253, 247, 0.94); */
   }
   55% {
-    /* background-color: rgba(255, 254, 252, 0.402);  */
-    /* box-shadow: 0 10px 28px rgba(255, 255, 255, 0.256); */
   }
   85% {
-    /* background-color: rgba(
-      217,
-      214,
-      198,
-      0.037
-    );  */
-    /* box-shadow: 0 8px 22px rgba(255, 255, 254, 0.106); */
   }
   100% {
     background-color: transparent;
@@ -250,7 +204,6 @@ counter-button:active {
   background-position:
     0 0,
     3px 3px;
-  /* filter: blur(0.6px) saturate(1.2); */
   border-radius: 50%;
   transform-origin: center;
   animation: dustSparkleTop 2.2s cubic-bezier(0.2, 0.8, 0.3, 1) 1;
@@ -270,7 +223,6 @@ counter-button:active {
   background-position:
     1px 1px,
     4px 4px;
-  /* filter: blur(0.85px) saturate(1.12); */
   border-radius: 50%;
   transform-origin: center;
   animation: dustSparkleBottom 2.2s cubic-bezier(0.2, 0.8, 0.3, 1) 1;
@@ -343,13 +295,11 @@ counter-button:active {
   }
 }
 
-/* Sparkle sheen animation */
 .tiara-sparkles .sheen {
   transform-origin: center;
   animation: tiaraSheenMove 2.2s linear infinite;
 }
 
-/* move from left to right smoothly */
 @keyframes tiaraSheenMove {
   0% {
     transform: translateX(-60px) rotate(-10deg);
@@ -374,14 +324,12 @@ counter-button:active {
   }
 }
 
-/* hide sparkles on small screens to save space */
 @media (max-width: 640px) {
   .tiara-sparkles {
     display: none !important;
   }
 }
 
-/* Custom Swiper pagination bullets */
 .swiper-pagination-bullet {
   width: 10px !important;
   height: 10px !important;
@@ -422,13 +370,11 @@ counter-button:active {
   box-shadow: 0 0 0 4px rgba(161, 138, 104, 0.12);
 }
 
-/* при hover (если нужно) — лёгкий эффект */
 .swiper-pagination-bullet:hover {
   transform: scale(1.08);
   opacity: 1;
 }
 
-/* Overlay fade */
 .saved-modal-overlay {
   opacity: 0;
   transition: opacity 200ms ease;
@@ -437,7 +383,6 @@ counter-button:active {
   opacity: 1;
 }
 
-/* Panel: fade + slide-up + slight scale */
 .saved-modal-panel {
   transform: translateY(12px) scale(0.98);
   opacity: 0;
@@ -450,7 +395,6 @@ counter-button:active {
   opacity: 1;
 }
 
-/* Backdrop and panel basic layout */
 .saved-modal-root {
   position: fixed;
   inset: 0;
@@ -464,7 +408,6 @@ counter-button:active {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.48);
-  backdrop-filter: blur(2px);
 }
 .saved-modal-card {
   position: relative;
@@ -476,7 +419,6 @@ counter-button:active {
   padding: 20px;
 }
 
-/* Buttons */
 .saved-modal-actions {
   display: flex;
   gap: 12px;

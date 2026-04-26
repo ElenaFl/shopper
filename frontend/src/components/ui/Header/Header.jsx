@@ -4,47 +4,122 @@ import { useAuth } from "../../../context/auth/useAuth.js";
 import { useSaved } from "../../../context/save/useSaved.js";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 
+/**
+ *
+ * Header — верхняя навигационная панель приложения.
+ *
+ * Описание:
+ * - Отображает логотип, навигационные ссылки, состояние авторизации пользователя,
+ *   и контролы для сохранённых элементов (saved), корзины и доступа к аккаунту.
+ * - Использует контексты и хуки:
+ *   - useAuth для данных текущего пользователя (user, checking).
+ *   - useSaved для управления списком сохранённых/избранных элементов.
+ *   - CartContext для получения содержимого корзины и вычисления общего количества товаров.
+ * - Хук useLocation используется для определения, на домашней ли мы странице (isHome),
+ *   чтобы условно отрисовывать бордеры.
+ *
+ * Поведение:
+ * - Логотип (svg) ведёт на корень приложения ("/").
+ * - Если пользователь аутентифицирован и не проходит проверку checking, показывается приветствие (первое слово имени).
+ * - Saved button:
+ *   - Управляется через useSaved: setOpen переключает отображение панели сохранённых элементов.
+ *   - Показывает бейдж с количеством сохранённых элементов (savedCount).
+ * - Cart link:
+ *   - Показывает бейдж с суммарным количеством товаров в корзине (cartQty), вычисляется из CartContext.
+ * - Account link:
+ *   - При клике выполняется fetch к `${API_BASE}/api/user` (с credentials: "include") для проверки, является ли пользователь админом.
+ *   - Если пользователь админ — перенаправляет на /admin, иначе на /account.
+ *   - В случае сетевой ошибки тоже происходит переход на /account.
+ *
+ * Реализация / детали:
+ * - API_BASE берётся из import.meta.env.VITE_API_BASE или по умолчанию "http://shopper.local".
+ * - savedCount и cartQty безопасно вычисляются с проверкой Array.isArray.
+ * - Лог раздела items срабатывает при изменении items (для разработки).
+ *
+ * Accessibility (A11y):
+ * - Кнопка saved имеет aria-label="Saved items" и aria-expanded={open}.
+ * - Бейджи счетчиков имеют aria-hidden="true".
+ * - Изображения имеют alt-атрибуты;
+ * - Навигация использует семантический <nav>. *
+ */
+
 export const Header = () => {
+  // хук из react-router — даёт объект location с текущим путём (pathname, search, hash).
+  // используется для определения, находится ли пользователь на главной странице (isHome)
+  // и для условной отрисовки бордера/стилей.
   const location = useLocation();
 
+  // Кастомный хук авторизации.
+  // - user: объект текущего пользователя (или null/undefined если не авторизован).
+  // - checking: флаг, указывающий, идёт ли асинхронная проверка/загрузка статуса пользователя.
+  // Нужен для управления отображением приветствия и предотвращения мерцания при загрузке
   const { user, checking } = useAuth();
+
+  // хук из react-router для программной навигации (navigate('/path')).
   const navigate = useNavigate();
 
+  // кастомный хук/контекст для "сохранённых" (favourites/saved) элементов.
+  // - items: массив сохранённых элементов.
+  // - open: boolean — текущий статус UI панели сохранённых элементов.
+  // - setOpen: функция для переключения статуса панели (обычно setOpen(prev => !prev)).
   const { items, open, setOpen } = useSaved();
 
+  // отладочный эффект: логирует items при каждом изменении.
+  // полезно во время разработки, помогает увидеть, обновляются ли saved items.
   React.useEffect(() => {
     console.log("Header sees items:", items);
   }, [items]);
+
+  // безопасный подсчёт: если items не массив — возвращаем 0.
+  // используется для бейджа рядом с иконкой "saved".
   const savedCount = Array.isArray(items) ? items.length : 0;
 
-  // get cart from context and compute total quantity
+  // получаем корзину из контекста и вычисляем общее количество
+
+  // CartContext предполагает форму { cart: Array<...>, ... }.
+  // важно: если контекст ещё не инициализирован, cart может быть undefined.
   const { cart } = useContext(CartContext);
+  // безопасное суммирование количества товаров в корзине.
+  // - проверяем, что cart — массив, иначе возвращаем 0.
+  // - для каждого элемента берём p.quantity, приводим к Number (защита от строк), и учитываем 0 по умолчанию.
   const cartQty = Array.isArray(cart)
     ? cart.reduce((s, p) => s + (Number(p.quantity) || 0), 0)
     : 0;
 
+  // проверка, чтобы понять, на домашней ли мы странице.
+  // используется для изменения стилей (например, убрать/поставить нижнюю границу).
   const isHome = location.pathname === "/" || location.pathname === "";
 
+  // базовый URL для API берётся из переменных окружения Vite.
+  // если переменная не установлена (например, в dev), используется локальный URL.
   const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
   const handleAccountClick = async (e) => {
+    // предотвращаем дефолтное поведение ссылки (<a href="/account">) — предотвращаем навигацию
+    // до завершения проверки (чтобы при админе перенаправить на /admin).
     e?.preventDefault();
     try {
       const res = await fetch(`${API_BASE}/api/user`, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
+        credentials: "include", // отправляем cookie/сессионные данные
+        headers: { Accept: "application/json" }, // ожидаем JSON-ответ
       });
+      // если получили успешный ответ, пытаемся распарсить JSON.
       if (res.ok) {
+        // .catch(() => null) защищает от ошибок парсинга (например, пустой ответ).
         const json = await res.json().catch(() => null);
+        // зависит от формата API: некоторые ответы оборачивают полезные данные в поле data.
+        // currentUser — либо json.data, либо сам json.
         const currentUser = json && (json.data ?? json);
+        // если сервер говорит, что пользователь — админ, сразу навигируем в админку.
         if (currentUser && currentUser.is_admin) {
           navigate("/admin");
           return;
         }
       }
     } catch {
-      // network error, fall through to account
+      // если сетевой сбой или исключение — мы падаем сюда.
     }
+    // по умолчанию (не админ / неуспешный запрос) — переходим на страницу аккаунта.
     navigate("/account");
   };
 

@@ -16,21 +16,12 @@ async function ensureCsrf() {
   return getXsrf();
 }
 
-/**
- * Helper: compute effective price from a product object or a saved snapshot.
- * Priority:
- * 1) explicit snapshot.price_after
- * 2) discount object (percent/fixed) applied to original price
- * 3) snapshot.price or product.price
- * 4) fallback 0
- */
 function computePriceFromSnapshot(productOrSnapshot = {}) {
   try {
     const rawPrice =
       productOrSnapshot?.price ?? productOrSnapshot?.price_amount ?? null;
     const orig = rawPrice != null ? Number(rawPrice) : null;
 
-    // discount may be array or object
     const discountRaw =
       productOrSnapshot?.discount ?? productOrSnapshot?.discounts ?? null;
     let discount = null;
@@ -38,7 +29,6 @@ function computePriceFromSnapshot(productOrSnapshot = {}) {
       discount = discountRaw[0];
     else discount = discountRaw;
 
-    // 1) explicit snapshot price_after (snapshot override)
     if (
       productOrSnapshot != null &&
       productOrSnapshot.price_after != null &&
@@ -47,7 +37,6 @@ function computePriceFromSnapshot(productOrSnapshot = {}) {
       return Number(productOrSnapshot.price_after);
     }
 
-    // 2) discount object applied to original price
     if (discount && typeof discount === "object" && orig != null) {
       const dType = discount.type ?? null;
       const dValue = discount.value ?? discount.amount ?? null;
@@ -60,10 +49,8 @@ function computePriceFromSnapshot(productOrSnapshot = {}) {
       }
     }
 
-    // 3) explicit price on snapshot/product
     if (orig != null && Number.isFinite(orig)) return Number(orig);
 
-    // 4) fallback
     return 0;
   } catch (err) {
     console.warn("computePriceFromSnapshot error", err);
@@ -71,15 +58,8 @@ function computePriceFromSnapshot(productOrSnapshot = {}) {
   }
 }
 
-/**
- * Normalize a saved item (from server or localStorage) to ensure:
- * - qty is numeric
- * - price and price_after are numeric (or computed fallback)
- * - product present as object or null
- */
 function normalizeSavedItem(item = {}) {
   const productObj = item.product ?? {};
-  // compute with product overridden by snapshot fields (snapshot should win)
   const computed = computePriceFromSnapshot({ ...productObj, ...item });
 
   const rawPrice = item.price ?? productObj?.price ?? null;
@@ -152,7 +132,6 @@ export const SavedProvider = ({ children }) => {
         }
         const json = await res.json();
         const raw = Array.isArray(json.data) ? json.data : [];
-        // normalize server items so price_after/price are present and numeric
         const normalized = raw.map((it) => normalizeSavedItem(it));
         setItems(normalized);
       } else {
@@ -175,7 +154,6 @@ export const SavedProvider = ({ children }) => {
           for (const entry of parsed) {
             if (entry == null) continue;
             if (typeof entry === "object" && entry !== null) {
-              // compute effective price and ensure consistent fields
               const productObj = entry.product ?? {};
               const computed = computePriceFromSnapshot({
                 ...productObj,
@@ -269,14 +247,12 @@ export const SavedProvider = ({ children }) => {
         }
         if (!Array.isArray(arr)) arr = [];
 
-        // normalize existing entries to objects
         const normalized = arr.map((entry) =>
           typeof entry === "object" && entry !== null
             ? entry
             : { product_id: entry },
         );
 
-        // compute snapshot with ensured price fields
         const snapshotProduct = productSnapshot ?? null;
         const computedPrice = computePriceFromSnapshot(snapshotProduct ?? {});
         const snapshot = {

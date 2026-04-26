@@ -12,7 +12,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * OrderController
+ * Class OrderController
+ *
+ * API-контроллер для создания и просмотра заказов.
+ *
+ * Поведение:
+ * - store: создаёт заказ с позициями в транзакции, очищает корзину пользователя после успешного создания.
+ * - show: возвращает заказ по id (с items), проверяет право просмотра через policy.
+ * - index: возвращает постраничный список заказов текущего пользователя.
+ *
+ * Ответы:
+ * - 201 Created (при создании)
+ * - 200 OK (при получении)
+ * - 401/403/404/500 при ошибках
  */
 
 class OrderController extends Controller

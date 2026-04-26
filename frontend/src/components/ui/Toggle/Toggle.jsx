@@ -1,12 +1,21 @@
 import React from "react";
 import styles from "./Toggle.module.css";
+
 /**
  *
- * Компонент кнопка-переключатель(toggle)
- * props: * - nameToggle: string
- * - value: boolean (контролируемое состояние)
- * - onChange: function(checked: boolean)
+ * Toggle — контролируемый компонент переключателя (checkbox styled).
+ *
+ * Props:
+ * @param {string} [nameToggle] - Метка/текст рядом с переключателем.
+ * @param {boolean} [value=false] - Текущее состояние переключателя (контролируемый компонент).
+ * @param {(checked:boolean)=>void} [onChange] - Коллбек, вызываемый при изменении состояния с аргументом (true/false).
+ * @param {Object} [rest] - Дополнительные props (id, disabled, aria-* и т.д.) можно прокинуть в <input>.
+ *
+ * Поведение:
+ * - Компонент контролируемый: родитель передаёт value и обновляет его через onChange.
+ * - Визуальная часть реализована через input[type="checkbox"] и стилизованную дорожку/ползунок (CSS).
  */
+
 export const Toggle = (props) => {
   const nameToggle = props.nameToggle;
   const value = !!props.value;

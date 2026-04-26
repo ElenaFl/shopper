@@ -10,7 +10,9 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 
 /**
- * IncrementPostViews увеличивает поле views в таблице products для заданного productId posts
+ * Class IncrementPostViews
+ *
+ * Увеличивает поле views в таблице products для заданного productId posts
  */
 
 

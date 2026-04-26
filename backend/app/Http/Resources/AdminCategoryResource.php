@@ -5,7 +5,16 @@ namespace App\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * AdminCategoryResource: трансформер для админского API категории ( берёт модель (Category) и превращает её в формат, удобный для ответа API (JSON)).  Возвращает поля id, title, slug, timestamps и количество товаров (products_count).  products_count берётся из загруженной связи products (count)присутствует).
+ *
+ *
+/**
+ * Class AdminCategoryResource
+ *
+ * Трансформер для админского API категории.
+ *
+ * Возвращает: id, title, slug, products_count (если relation products загружена — количество элементов,
+ * иначе использует поле products_count, если оно присутствует), created_at, updated_at.
+ * Трансформер для админского API категории ( берёт модель (Category) и превращает её в формат, удобный для ответа API (JSON)).
  */
 
 class AdminCategoryResource extends JsonResource

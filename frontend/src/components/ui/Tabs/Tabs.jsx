@@ -1,17 +1,24 @@
 import React from "react";
 
 /**
- * Универсальный компонент вкладок (Tabs).
  *
- * Пропсы:
- * - categories: string[] — список вкладок
- * - activeCategory: string — текущая активная вкладка
- * - onCategoryChange: (category) => void — обработчик клика
- * - tabClassName: string — классы для контейнера (flex, justify-start и т.д.)
- * - tabItemClassName: string — базовые классы для каждой кнопки
- * - activeClassName: string — дополнительные классы для активной кнопки
- * - inactiveClassName: string — дополнительные классы для неактивной кнопки
+ *Tabs — универсальный компонент вкладок.
+ *
+ * Props:
+ * @param {string[]} [categories=[]] - Массив названий вкладок (строк). Порядок определяет визуальный порядок.
+ * @param {string} [activeCategory] - Текущая активная вкладка (строка, совпадающая с одним из categories).
+ * @param {(category:string) => void} [onCategoryChange] - Коллбек при выборе вкладки. Вызывается с названием вкладки.
+ * @param {string} [tabClassName="flex list-none gap-2"] - CSS‑классы для контейнера вкладок (гибкость/раскладка).
+ * @param {string} [tabItemClassName="inline-flex items-center justify-center px-4 py-2 text-base rounded-sm"] - Базовые классы для каждой кнопки‑вкладки.
+ * @param {string} [activeClassName="bg-black text-white"] - Доп. классы, применяемые к активной вкладке.
+ * @param {string} [inactiveClassName="bg-white text-black"] - Доп. классы, применяемые к неактивной вкладке.
+ *
+ * Поведение:
+ * - Рендерит набор кнопок по categories.
+ * - Кнопка получает role="tab" и aria-selected для доступности.
+ * - При клике вызывается onCategoryChange(category).
  */
+
 export const Tabs = ({
   categories = [],
   activeCategory,

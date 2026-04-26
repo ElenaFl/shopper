@@ -6,7 +6,18 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use \App\Http\Resources\ReviewResource;
 
 /**
- * ProductResource превращает модель Product в массив/JSON для API. Здесь производится нормализация изображений, расчёт итоговой цены со скидкой, формирование  структуры полей и условный вывод связанных данных (reviews, category) -- какие поля с какими ключами будут отданы по API
+ * Class ProductResource
+ *
+ * Трансформер для публичного API продукта.
+ *
+ * Поведение:
+ * - Нормализует изображение (локальный путь и публичный URL) через resolveImage().
+ * - Определяет активную скидку (несколько вариантов поиска: accessor → relation → перебор discounts).
+ * - Вычисляет final_price: предпочитает $resource->final_price, иначе использует рассчитанную цену после скидки.
+ * - Возвращает набор полей: id, title, sku, price, currency(+symbol), final_price, discount, description,
+ *   img/img_url/img_thumb_url, характеристики, метрики, reviews (если загружены), category (если загружена), timestamps.
+ *
+ * Превращает модель Product в массив/JSON для API. Здесь производится нормализация изображений, расчёт итоговой цены со скидкой, формирование  структуры полей и условный вывод связанных данных (reviews, category) -- какие поля с какими ключами будут отданы по API
  */
 
 class ProductResource extends JsonResource
@@ -58,12 +69,8 @@ class ProductResource extends JsonResource
         return [$rel, url('/storage/' . $rel)];
     }
 
-
-
-
     public function toArray($request)
     {
-
         //Нормализует значения полей img и img_thumb в пару [локальный путь, полный URL] через вспомогательный метод resolveImage.
         [$imgPath, $imgUrl] = $this->resolveImage($this->img ?? null);
         [$thumbPath, $thumbUrl] = $this->resolveImage($this->img_thumb ?? null);

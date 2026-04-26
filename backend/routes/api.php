@@ -14,7 +14,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ChatWidgetController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\SavedItemController;
-use App\Http\Controllers\Api\CartController;
+use \App\Http\Controllers\Api\CartController;
 
 /*
 *
@@ -76,7 +76,6 @@ Route::middleware('web')->group(function () {
     Route::put('/user/cart/{id}', [CartController::class, 'update'])->middleware('auth:sanctum');
     Route::delete('/user/cart/{id}', [CartController::class, 'destroy'])->middleware('auth:sanctum');
     Route::post('/user/cart/sync', [CartController::class, 'sync'])->middleware('auth:sanctum');
-
 });
 
 // чат бот

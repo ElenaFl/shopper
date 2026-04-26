@@ -10,8 +10,20 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
-
-//Контроллер управляет корзинными позициями пользователя: list (index), add (store), update, delete (destroy), и sync (синхронизация списка из клиента).Использует session‑based аутентификацию (Request->user()) — все операции выполняются только для текущего пользователя. Snapshot используется для хранения снимка товара (meta) на момент добавления — полезно для истории/цен.
+/**
+ * Class CartController
+ *
+ * API-контроллер для управления корзиной пользователя (CartItem).
+ *
+ * Поведение:
+ * - Работает с корзиной текущего аутентифицированного пользователя (Request->user()).
+ * - Поддерживает операции: index, store, update, destroy, sync.
+ * - Хранит snapshot (meta) товара на момент добавления для истории/воссоздания состояния.
+ *
+ * Формат ответов:
+ * - Возвращает JSON с полем data для ресурсов.
+ * - Статусы: 200 OK, 201 Created, 204 No Content, 422 Validation, 404 Not Found.
+ */
 
 class CartController extends Controller
 {

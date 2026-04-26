@@ -7,9 +7,11 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
- * модель пользователя в Laravel — класс User предоставляет аутентификацию/токены/уведомления
  *
- * extends Authenticatable — стандартная модель пользователя с готовой реализацией методов аутентификации
+ * Class User
+ *
+ * Eloquent‑модель пользователя
+ * Предоставляет аутентификацию/токены/уведомления
  */
 
 class User extends Authenticatable

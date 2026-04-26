@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Carbon;
 
 /**
- * Discount
- * Модель скидки для товара.
+ * Class Discount
+ *
+ * Eloquent‑модель скидки для товара.
  * Параметры: product_id|sku, type (percent|fixed), value, currency, active, starts_at, ends_at, note.
  * Используется для вычисления итоговой цены (priceAfter) и проверки активности скидки (isActive). */
 

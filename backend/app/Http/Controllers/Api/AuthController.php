@@ -12,7 +12,26 @@ use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use Illuminate\Support\Facades\Cookie;
 
-//реализует регистрацию, вход, выход и получение текущего пользователя для API (stateful через сессии + опционально выдача personal token). Поддерживает как cookie‑based flow (Sanctum/web sessions), так и опциональную выдачу personal access token для внешних клиентов.
+/**
+ * Class AuthController
+ *
+ * API-контроллер для регистрации, входа, выхода и получения текущего пользователя.
+ *
+ * Поддерживает:
+ * - Cookie-based аутентификацию (session + Sanctum CSRF flow) — основной поток для SPA.
+ * - Опциональную выдачу personal access token (Sanctum) при запросе (create_token).
+ *
+ * Поведение:
+ * - register: создаёт пользователя, логинит в сессию, опционально возвращает personal token.
+ * - login: аутентифицирует пользователя (session), опционально возвращает token.
+ * - logout: выполняет logout, инвалидирует сессию и очищает CSRF/session куки.
+ * - me: возвращает текущего аутентифицированного пользователя.
+ *
+ * Формат ответов:
+ * - 201 Created — при успешной регистрации.
+ * - 200 OK — успешный вход/выход/получение пользователя.
+ * - 401/422/500 — при ошибках аутентификации/валидации/серверных ошибках.
+ */
 
 class AuthController extends Controller
 {

@@ -8,7 +8,9 @@ use App\Models\Category;
 use App\Policies\CategoryPolicy;
 
 /**
- *  AuthServiceProvider - отвечает за регистрацию политик (Policies) и глобальные правила авторизации (Gates)
+ *  Class AuthServiceProvider
+ *
+ * Отвечает за регистрацию политик (Policies) и глобальные правила авторизации (Gates)
  */
 
 

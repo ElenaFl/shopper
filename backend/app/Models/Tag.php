@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 /**
- * Модель Tag —  Eloquent‑модель для тегов
+ * Class Tag
+ *
+ * Eloquent‑модель для тегов
  */
 
 class Tag extends Model

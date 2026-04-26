@@ -5,13 +5,17 @@ namespace App\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * AdminProductResource
+ * Class AdminProductResource
+ *
  * Трансформер (JSON Resource) для админского API продукта.
- * Формирует безопасный и удобный JSON‑ответ со следующими задачами:
- * Нормализует изображение (локальный путь и публичный URL) через resolveImage().
- * Определяет активную скидку (activeDiscount) в приоритетном порядке: relation loaded → relation query → перебор discounts.
- * Вычисляет final_price: предпочитает $resource->final_price, иначе использует рассчитанную цену после скидки.
- * Возвращает набор полей: id, title, sku, price, currency, final_price, discount, description, img/img_url, характеристики (weight, dimensions, colours, material), метрики (is_popular, sales_count, popularity_score), category (если загружена), timestamps.
+ *
+ * Поведение:
+ * - Нормализует изображение (локальный путь и публичный URL) через resolveImage().
+ * - Определяет активную скидку в порядке приоритета: relation activeDiscount (loaded) → relation query → перебор discounts.
+ * - Вычисляет final_price: предпочитает $resource->final_price, иначе использует рассчитанную цену после скидки.
+ * - Возвращает набор полей: id, title, sku, price, currency, final_price, discount, description, img/img_url,
+ *   характеристики (weight, dimensions, colours, material), метрики (is_popular, sales_count, popularity_score),
+ *   category (если загружена), timestamps.
  */
 
 class AdminProductResource extends JsonResource
