@@ -5,7 +5,20 @@ import { CartContext } from "../context/cart/CartContext.jsx";
 import { useAuth } from "../context/auth/useAuth.js";
 import { Select } from "../components/ui/Select/Select.jsx";
 
-// helper id generator (не требуется, но оставлен если frontend хочет передавать id)
+/**
+ *
+ * Checkout - страница оформления заказа.
+ *
+ * Создаёт заказ методом POST /api/orders, сохраняет snapshot и очищает корзину при успешном создании
+ *
+ * Ключевые состояния (useState)
+ * form: объект с полями формы (first, last, company, country, street, postCode, city, phone, email, notes, paymentMethod, cardBank, cardNumber, cardExpiry, cardCvv)
+ * isSubmitting: флаг отправки заказа
+ * paymentModalOpen: открыта ли модалка оплаты
+ * paymentConfirmed: флаг — подтверждена ли оплата (на данный момент - симуляция)
+ * lastPaymentInfo: объект с информацией об оплате (method, provider_ref, timestamp, bank, card_last4) *
+ */
+
 const genOrderId = () => `order-${Date.now()}`;
 
 export const Checkout = () => {
@@ -41,14 +54,12 @@ export const Checkout = () => {
   const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
   useEffect(() => {
-    // Clean up any old local orders on app load
     try {
       localStorage.removeItem("shopper_orders");
     } catch (err) {
       console.error("Failed to remove shopper_orders from localStorage:", err);
     }
 
-    // try load snapshot from cart page
     try {
       const snapshot = JSON.parse(
         sessionStorage.getItem("shopper_checkout") || "null",
@@ -65,7 +76,6 @@ export const Checkout = () => {
       console.error("Failed to clear local caches:", err);
     }
 
-    // fill from user (account) if available
     if (user) {
       setForm((f) => ({
         ...f,
@@ -81,14 +91,13 @@ export const Checkout = () => {
     setForm((s) => ({ ...s, [key]: value }));
   };
 
-  // --- NEW submitOrder: POST to /api/orders ---
   const ensureCsrf = async () => {
     try {
       await fetch(`${API_BASE}/sanctum/csrf-cookie`, {
         credentials: "include",
       });
     } catch (err) {
-      // ignore network errors here; server will return 419 if CSRF unavailable
+      //
     }
     const raw = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "";
     return raw ? decodeURIComponent(raw) : "";
@@ -174,7 +183,6 @@ export const Checkout = () => {
       setIsSubmitting(false);
     }
   };
-  // --- END submitOrder ---
 
   return (
     <div className="mt-55 mb-62">
@@ -422,7 +430,7 @@ export const Checkout = () => {
         </div>
       </div>
 
-      {/* Payment modal */}
+      {/* модальное окно */}
       {paymentModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-auto">
           <div

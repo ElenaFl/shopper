@@ -1,6 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
+/**
+ * Blog — страница списка постов блога.
+ *
+ * Загружает посты с API (/api/blog/posts), отображает карточки постов и позволяет
+ * фильтровать их по категориям (categories, fashion, style, accessories, season).
+ * При клике на карточку или на "Read More" происходит навигация на страницу поста.
+ *
+ * Компонент хранит локальное состояние: posts (массив постов), loading (индикатор загрузки),
+ * error (сообщение об ошибке) и activeTab (текущая выбранная категория).
+ *
+ * Функция fetchPosts(tag) делает запрос к API, поддерживает формат ответа массив или { data: [...] },
+ * обновляет состояние и обрабатывает ошибки. При монтировании загружаются все посты,
+ * при смене вкладки загружаются посты по соответствующему тегу.
+ *
+ * В UI слева — список категорий (кнопки), справа — сетка карточек постов с изображением, датой,
+ * заголовком, отрывком и ссылкой для перехода. При отсутствии постов показывается сообщение "No posts found."
+ * Во время загрузки отображается "Loading posts...", при ошибке — текст ошибки.
+ */
 export const Blog = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -8,7 +26,6 @@ export const Blog = () => {
   const [activeTab, setActiveTab] = useState("categories"); // categories|fashion|style|accessories|season
   const navigate = useNavigate();
 
-  // helper to fetch posts (optionally by tag)
   const fetchPosts = async (tag = null) => {
     setLoading(true);
     setError(null);
@@ -22,7 +39,6 @@ export const Blog = () => {
       });
       if (!res.ok) throw new Error("Fetch error " + res.status);
       const json = await res.json();
-      // PostResource::collection returns array; if using paginator you'd handle differently
       const items = Array.isArray(json) ? json : (json?.data ?? []);
       setPosts(items);
     } catch (e) {
@@ -33,12 +49,9 @@ export const Blog = () => {
   };
 
   useEffect(() => {
-    // load all posts on mount
     fetchPosts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // when tab changes, fetch posts for that tag
   useEffect(() => {
     if (activeTab === "categories") {
       fetchPosts();

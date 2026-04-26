@@ -1,6 +1,11 @@
 import React from "react";
 import { Button } from "../../components/ui/Button/Button.jsx";
 
+/**
+ *
+ * ResetPassword - страница, которая содержит форму для запроса сброса пароля: поле email и кнопка отправки.
+ */
+
 export const ResetPassword = () => {
   return (
     <div className="w-140 my-63 m-auto">

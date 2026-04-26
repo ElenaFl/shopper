@@ -2,6 +2,26 @@ import React, { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/auth/AuthContext.jsx";
 
+/**
+ * BlogDetails —  Отображает страницу отдельного блога (пост): заголовок, автор, дата публикации, изображение, тело поста, теги.
+ *  Реализует список вложенных комментариев (древовидная структура), форму добавления комментария и ответов на комментарии.
+ *  Позволяет авторизованным пользователям добавлять комментарии и ответы, а также — при наличии прав — удалять комментарии.
+ *  Предусматривает просмотр изображения в лайтбоксе (увеличение).
+ *
+ * Основные состояния компонента (useState)
+ * - post: объект поста с полями (title, body, img, img_url, author, published_at, tags, comments, comments_count и т.д.)
+ * - loading: флаг загрузки поста
+ * - error: строка ошибки
+ * - commentText: текст основного комментария (reply to post)
+ * - submitting: флаг отправки основного комментария
+ * - lightboxOpen, lightboxSrc: управление лайтбоксом для просмотра изображения
+ *  COMMENTS_PAGE_SIZE: константа (5)
+ *  showAllComments: показывает все корневые комментарии или только последние COMMENTS_PAGE_SIZE
+ *  replyFor: id комментария, для которого открыт инпут ответа
+ *  replyText: текст ответа
+ *  submittingReply: флаг отправки ответа
+ */
+
 const API_BASE_DEFAULT = "http://shopper.local";
 
 const normalizeAvatar = (v, apiBase) => {
@@ -28,14 +48,12 @@ export const BlogDetails = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
-  // comments UI
   const COMMENTS_PAGE_SIZE = 5;
   const [showAllComments, setShowAllComments] = useState(false);
   const [replyFor, setReplyFor] = useState(null); // comment id for which reply box is open
   const [replyText, setReplyText] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
 
-  // Load post with comments
   const loadPost = async () => {
     setLoading(true);
     setError(null);
@@ -74,7 +92,6 @@ export const BlogDetails = () => {
     document.body.style.overflow = "";
   };
 
-  // Helpers
   const timeAgo = (iso) => {
     if (!iso) return "";
     const diff = Date.now() - new Date(iso).getTime();
@@ -107,7 +124,6 @@ export const BlogDetails = () => {
     return "/images/avatar-placeholder.webp";
   };
 
-  // Build tree from flat comments if needed
   const buildTree = (comments = []) => {
     const map = new Map();
     comments.forEach((c) =>
@@ -147,34 +163,32 @@ export const BlogDetails = () => {
     return roots;
   };
 
-  const removeCommentAndChildren = (comments, idToRemove) => {
-    const toRemove = new Set();
-    const map = new Map();
-    comments.forEach((c) =>
-      map.set(c.id, {
-        ...c,
-        children: Array.isArray(c.children) ? c.children : [],
-      }),
-    );
+  // const removeCommentAndChildren = (comments, idToRemove) => {
+  //   const toRemove = new Set();
+  //   const map = new Map();
+  //   comments.forEach((c) =>
+  //     map.set(c.id, {
+  //       ...c,
+  //       children: Array.isArray(c.children) ? c.children : [],
+  //     }),
+  //   );
 
-    const stack = [idToRemove];
-    while (stack.length) {
-      const cur = stack.pop();
-      if (toRemove.has(cur)) continue;
-      toRemove.add(cur);
-      map.forEach((c) => {
-        if (c.parent_id === cur) stack.push(c.id);
-      });
-    }
+  //   const stack = [idToRemove];
+  //   while (stack.length) {
+  //     const cur = stack.pop();
+  //     if (toRemove.has(cur)) continue;
+  //     toRemove.add(cur);
+  //     map.forEach((c) => {
+  //       if (c.parent_id === cur) stack.push(c.id);
+  //     });
+  //   }
 
-    return comments.filter((c) => !toRemove.has(c.id));
-  };
+  //   return comments.filter((c) => !toRemove.has(c.id));
+  // };
 
-  // Handlers
   const handleDeleteComment = async (commentId) => {
     if (!confirm("Delete this comment?")) return;
 
-    // helper to find comment and its parent id in nested tree
     const findWithParent = (list, id, parent = null) => {
       for (const c of list || []) {
         if (c.id === id) return { comment: c, parent };
@@ -216,11 +230,9 @@ export const BlogDetails = () => {
         throw new Error("Failed to delete comment");
       }
 
-      // update local state
       setPost((p) => {
         if (!p || !Array.isArray(p.comments)) return p;
 
-        // Remove single reply from anywhere in the tree
         const removeSingle = (list, idToRemove) =>
           list
             .map((c) => {
@@ -237,7 +249,6 @@ export const BlogDetails = () => {
             })
             .filter(Boolean);
 
-        // Helper: find and update parent node after removing a child
         const markParentIfNowEmptyAndDeleted = (list, parentId) =>
           list
             .map((c) => {
@@ -245,7 +256,6 @@ export const BlogDetails = () => {
                 const newChildren = (
                   Array.isArray(c.children) ? c.children : []
                 ).filter((ch) => ch.id !== commentId);
-                // If parent is soft-deleted and now has no children -> remove parent (return null)
                 if (
                   (c.is_deleted || c.deleted_at) &&
                   newChildren.length === 0
@@ -269,7 +279,6 @@ export const BlogDetails = () => {
         if (isReply) {
           newComments = removeSingle(p.comments, commentId);
 
-          // If a parent existed, and it is soft-deleted and now children array became empty, remove that parent as well
           if (parent && (parent.is_deleted || parent.deleted_at)) {
             newComments = markParentIfNowEmptyAndDeleted(
               newComments,
@@ -277,16 +286,14 @@ export const BlogDetails = () => {
             );
           }
         } else {
-          // Root comment deleted: mark as soft-deleted (server already did), keep children.
-          // If server soft-deleted root but it has no children now, remove it.
           const markRootDeleted = (list) =>
             list
               .map((c) => {
                 if (c.id === commentId) {
                   const hasChildren =
                     Array.isArray(c.children) && c.children.length > 0;
-                  if (!hasChildren) return null; // remove entirely if no children
-                  return { ...c, is_deleted: true }; // keep and show "Комментарий удалён" if has children
+                  if (!hasChildren) return null;
+                  return { ...c, is_deleted: true };
                 }
                 if (Array.isArray(c.children) && c.children.length) {
                   return {
@@ -425,9 +432,6 @@ export const BlogDetails = () => {
     }
   };
 
-  // Renderer for a single comment (recursive)
-  // Replace your current renderComment with this function
-  // Renderer for a single comment (recursive)
   const renderComment = (c, level = 0) => {
     const indentClass = level > 0 ? "ml-12 mt-4" : "";
     const isDeleted = Boolean(c.is_deleted || c.deleted_at);
@@ -438,7 +442,6 @@ export const BlogDetails = () => {
 
     const placeholder = "/images/avatar-placeholder.webp";
 
-    // Use placeholder for both deletedWithChildren and deletedNoChildren
     const absPlaceholder = `${API_BASE.replace(/\/$/, "")}${placeholder}`;
 
     const avatarSrc =

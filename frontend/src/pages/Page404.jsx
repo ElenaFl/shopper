@@ -1,6 +1,12 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 
+/**
+ *
+ * Page404 - информационная страница
+ * Сообщает пользователю о том, что запрошенная страница не найдена, и предоставляет ссылку назад на главную страницу.
+ */
+
 export const Page404 = () => {
   return (
     <div className="pt-95 pb-62 m-auto flex flex-col items-center">

@@ -5,6 +5,13 @@ import { Pagination } from "../../components/ui/Pagination/Pagination.jsx";
 import { Drawer } from "../../components/ui/Drawer/Drawer.jsx";
 import "./Admin.css";
 
+/**
+ * 
+ * Админ-панель для управления товарами и отзывами (список, создание, редактирование, удаление).
+ * Работает с Laravel API на API_BASE (по умолчанию http://shopper.local).
+Управляет CRUD для /api/admin/products и отзывами /api/admin/reviews и /api/products/{id}/reviews.
+ */
+
 function getXsrf() {
   return decodeURIComponent(
     (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || "",
@@ -64,10 +71,8 @@ export const Admin = () => {
   const [productsMeta, setProductsMeta] = useState(null);
   const [categories, setCategories] = useState([]);
 
-  // Drawer visibility (used for both create and edit)
   const [showDrawer, setShowDrawer] = useState(false);
 
-  // Create form state
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
     title: "",
@@ -75,8 +80,8 @@ export const Admin = () => {
     price: "",
     sku: "",
     description: "",
-    img: null, // File
-    img_url: null, // preview for already uploaded
+    img: null,
+    img_url: null,
     weight: "",
     material: "",
     colours: "",
@@ -110,7 +115,6 @@ export const Admin = () => {
     setShowDrawer(true);
   };
 
-  // Edit state
   const [editMode, setEditMode] = useState(null); // product id or null
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -120,8 +124,8 @@ export const Admin = () => {
     price: "",
     sku: "",
     description: "",
-    img: null, // File if changed
-    img_url: null, // existing image url for preview
+    img: null,
+    img_url: null,
     weight: "",
     material: "",
     colours: "",
@@ -132,7 +136,6 @@ export const Admin = () => {
 
   const setEditField = (k, v) => setEditForm((s) => ({ ...s, [k]: v }));
 
-  // load categories for select
   useEffect(() => {
     const c = new AbortController();
     (async () => {
@@ -240,10 +243,8 @@ export const Admin = () => {
       );
       if (!res.ok) throw new Error("Fetch error: " + res.status);
       const json = await res.json();
-      // json.data expected (resource collection)
       const items = json.data ?? json;
       setAggReviews(Array.isArray(items) ? items : []);
-      // keep pagination
       if (json.meta) {
         setProductsMeta(json.meta);
         setProductsPage(json.meta.current_page ?? page);
@@ -284,7 +285,6 @@ export const Admin = () => {
                 <td>{p.id}</td>
                 <td
                   onDoubleClick={() => {
-                    // open edit drawer and populate editForm
                     setEditForm({
                       id: p.id,
                       title: p.title ?? "",
@@ -362,7 +362,6 @@ export const Admin = () => {
                       (Array.isArray(p.discounts) && p.discounts[0]) ??
                       null;
                     if (!d) return "—";
-                    // build readable label
                     if (d.type === "percent") {
                       return (
                         <span title={JSON.stringify(d)}>
@@ -378,7 +377,6 @@ export const Admin = () => {
                         </span>
                       );
                     }
-                    // fallback: if price_after present, show difference
                     if (d.price_after != null && typeof p.price === "number") {
                       const diff = Number(p.price) - Number(d.price_after);
                       return (
@@ -466,7 +464,6 @@ export const Admin = () => {
       const createdJson = await res.json().catch(() => null);
       const created = createdJson?.data ?? createdJson ?? null;
 
-      // create discount row if discount provided — prefer product_id when available
       if (createForm.discount && Number(createForm.discount) > 0) {
         try {
           const discountPayload = {
@@ -520,7 +517,7 @@ export const Admin = () => {
           credentials: "include",
         });
       } catch (e) {
-        // ignore CSRF fetch errors here (we'll still try)
+        //
       }
 
       const formData = new FormData();
@@ -534,16 +531,14 @@ export const Admin = () => {
       if (editForm.colours) formData.append("colours", editForm.colours);
       formData.append("is_popular", editForm.is_popular ? "1" : "0");
       formData.append("currency", editForm.currency || "$");
-      // only append file if user selected a new one
       if (editForm.img instanceof File) formData.append("img", editForm.img);
       formData.append("discount", editForm.discount ?? "");
       formData.append("discount_currency", editForm.currency || "$");
 
-      // Laravel expects PUT/PATCH — use _method override when sending multipart/form-data
       formData.append("_method", "PUT");
 
       const res = await fetch(`${API_BASE}/api/admin/products/${editForm.id}`, {
-        method: "POST", // using POST + _method override
+        method: "POST",
         credentials: "include",
         headers: {
           Accept: "application/json",
@@ -568,10 +563,8 @@ export const Admin = () => {
         return;
       }
 
-      // success — upsert/delete discount based on editForm.discount
       try {
         if (editForm.discount && Number(editForm.discount) > 0) {
-          // upsert: POST to discounts; backend should handle create or update by product_id
           await fetch(`${API_BASE}/api/admin/discounts`, {
             method: "POST",
             credentials: "include",
@@ -589,7 +582,6 @@ export const Admin = () => {
             }),
           });
         } else {
-          // delete any discounts by product_id (backend should support this)
           await fetch(
             `${API_BASE}/api/admin/discounts?product_id=${editForm.id}`,
             {
@@ -606,7 +598,6 @@ export const Admin = () => {
         console.warn("Discount upsert/delete failed", err);
       }
 
-      // success — refresh list and close drawer
       setShowDrawer(false);
       setEditMode(null);
       await loadProductsPage(1, true);
@@ -646,7 +637,6 @@ export const Admin = () => {
     }
   }
 
-  // Delete a review/comment by id (admin)
   async function handleDeleteReview(reviewId, productId) {
     if (!reviewId) return;
     if (!confirm("Удалить этот отзыв?")) return;
@@ -874,7 +864,6 @@ export const Admin = () => {
         )}
       </main>
 
-      {/* Drawer (create / edit) */}
       <Drawer
         isOpen={showDrawer}
         onClose={() => {
@@ -885,7 +874,7 @@ export const Admin = () => {
         title={editMode ? "Edit product" : "Create"}
         align="right"
       >
-        {/* form: if editMode use editForm else createForm */}
+        {/* form */}
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -1102,7 +1091,7 @@ export const Admin = () => {
                 }
               }}
             />
-            {/* preview: if file chosen show it, else show existing img_url */}
+            {/* preview */}
             {editMode ? (
               editForm.img ? (
                 <img
@@ -1129,7 +1118,6 @@ export const Admin = () => {
             ) : null}
           </div>
 
-          {/* Actions */}
           <div className="form-actions">
             {editMode ? (
               <>
@@ -1137,7 +1125,6 @@ export const Admin = () => {
                   type="button"
                   className="btn-cancel"
                   onClick={async () => {
-                    // Delete action
                     await handleDelete();
                   }}
                   disabled={editing}

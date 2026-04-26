@@ -2,6 +2,12 @@ import React, { useState } from "react";
 import { useAuth } from "../../context/auth/useAuth.js";
 import { useNavigate } from "react-router-dom";
 
+/**
+ *
+ * AdminLogoutButton - Кнопка выхода для админ-панели.
+ * Вызывает logout из контекста аутентификации и перенаправляет пользователя на страницу /account.
+ */
+
 export const AdminLogoutButton = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();

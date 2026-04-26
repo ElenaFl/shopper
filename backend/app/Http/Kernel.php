@@ -37,6 +37,8 @@ class Kernel extends HttpKernel
         TrimStrings::class,
         // преобразует пустые строки в null —  при сохранении в БД
         ConvertEmptyStringsToNull::class,
+        // возвращает JSON 419 для корневого запроса ("/") и также для запросов, когда клиент явно ожидает JSON (Accept: application/json)
+        \App\Http\Middleware\ReturnJson419::class,
     ];
 
     /**

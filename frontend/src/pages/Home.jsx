@@ -1,13 +1,27 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-// const SwiperComponent = lazy(
-//   () => import("../components/ui/SwiperComponent/SwiperComponent.jsx"),
-// );
 import SwiperComponent from "../components/ui/SwiperComponent/SwiperComponent.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
 import { Search } from "../components/ui/Search/Search.jsx";
 import { useDebounce } from "../hooks/useDebounce.js";
 import { useAuth } from "../context/auth/useAuth";
+
+/**
+ *
+ * Home - главная страница магазина: показывает слайдер (SwiperComponent), блок "Shop The Latest", поиск по товарам/категориям и сетку карточек товаров.
+ * Поддерживает быстрый показ топ-12 популярных товаров по умолчанию, поиск с дебаунсом (кастомный хук) и развёртывание списка (View All / Show Less).
+ *
+ * Ключевые состояния (useState / useEffect):
+ *
+ * query: текущее значение поля поиска (контролируемое).
+ * debouncedQuery: дебаунс-версия query (useDebounce, 750ms).
+ * products: массив загруженных товаров для отображения.
+ * loading: флаг загрузки списка товаров.
+ * error: сообщение об ошибке загрузки.
+ * mounted: задержка для анимации появления карточек (устанавливается true через таймаут 550ms).
+ * allShown: флаг — список был развёрнут (View All).
+ * Также useEffect зависит от debouncedQuery для загрузки данных.
+ */
 
 const showAllTerms = ["all categories", "all", "все категории", "все"];
 
@@ -30,7 +44,6 @@ export const Home = () => {
   const [allShown, setAllShown] = useState(false); // whether we've expanded to all
   const navigate = useNavigate();
 
-  // fetch for home (top 12 by popularity) or search
   useEffect(() => {
     const controller = new AbortController();
 
@@ -43,12 +56,10 @@ export const Home = () => {
         const isShowAll = q && showAllTerms.includes(q);
 
         if (!q || isShowAll) {
-          // default home: top 12 by popularity
           params.append("per_page", "12");
           params.append("sort", "popular");
         } else {
           params.append("search", debouncedQuery);
-          // keep default pagination for search (backend default)
         }
 
         const url = `http://shopper.local/api/products${params.toString() ? `?${params.toString()}` : ""}`;
@@ -84,10 +95,8 @@ export const Home = () => {
     return () => controller.abort();
   }, [debouncedQuery]);
 
-  // handler to show all products in-place
   const handleViewAll = async () => {
     if (allShown) {
-      // collapse back to top 12: re-fetch default home list (simple)
       setAllShown(false);
       setLoading(true);
       setError(null);
@@ -116,10 +125,8 @@ export const Home = () => {
       return;
     }
 
-    // expand: load all popular products (no per_page)
     setError(null);
     try {
-      // use sort=popular, no per_page to get all (backend default)
       const res = await fetch(
         "http://shopper.local/api/products?sort=popular",
         { credentials: "include" },
@@ -131,7 +138,6 @@ export const Home = () => {
         : json && Array.isArray(json.data)
           ? json.data
           : (json.data ?? []);
-      // remove duplicates by id if somehow overlap
       const ids = new Set(products.map((p) => p.id));
       const merged = [...products];
       for (const item of list) {
@@ -140,7 +146,6 @@ export const Home = () => {
           ids.add(item.id);
         }
       }
-      // if we started from top12, merged will be full set
       setProducts(merged);
       setAllShown(true);
     } catch (err) {
