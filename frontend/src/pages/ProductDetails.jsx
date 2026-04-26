@@ -4,12 +4,24 @@ import { Counter } from "../components/ui/Counter/Counter.jsx";
 import { Tabs } from "../components/ui/Tabs/Tabs.jsx";
 import { useSaved } from "../context/save/useSaved.js";
 
-/*
-  Lazy-load Swiper:
-  - dynamically import 'swiper/react' and 'swiper/modules'
-  - dynamically import CSS ('swiper/css', 'swiper/css/pagination')
-  - until loaded, render images list fallback
-*/
+/**
+ *
+ * ProductDetails - страница деталей товара: загрузка и отображение одного продукта (из API), галерея изображений со слайдером (Swiper, лениво подгружаемый), управление количеством и добавлением в корзину, просмотр похожих товаров, отображение и добавление отзывов, возможность сохранить товар (favorites / saved).
+ *
+ * Ключевые состояния (useState / useEffect):
+ *
+ * product: загруженный и нормализованный объект продукта.
+ * loadingProduct, productError: состояние загрузки/ошибки продукта.
+ * similar, loadingSimilar, similarError: список похожих товаров по категории
+ * sliderItems, loadingSliderItems: элементы для левого вертикального слайдера/миниатюр.
+ * swiperLoaded, SwiperComponents: состояние и ссылки на динамически импортированные компоненты Swiper.
+ * local: локальный state для счётчика/статуса добавления { count, isAdded } (синхронизируется с cart).
+ * isProcessingAdd: индикатор добавления/обновления в корзину.
+ * reviewComment, reviewRating, reviewName, reviewEmail, submittingReview, reviewError: поля и флаги формы добавления отзыва.
+ * highlightedReviews (Set, persisted в localStorage) и recentlyCreatedReviewId: для анимации/подсветки только что созданных 5★ отзывов.
+ * savedItems, isSaved, savingToggle: управление сохранением товара.
+ */
+
 import { CartContext } from "../context/cart/CartContext.jsx";
 import { Card } from "../components/ui/Card/Card.jsx";
 import { Button } from "../components/ui/Button/Button.jsx";
@@ -41,7 +53,6 @@ export const ProductDetails = () => {
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [similarError, setSimilarError] = useState(null);
 
-  // NEW: sliderItems holds "all products" for the left Swiper
   const [sliderItems, setSliderItems] = useState([]);
 
   const [categoryTitle, setCategoryTitle] = useState("");
@@ -49,7 +60,6 @@ export const ProductDetails = () => {
 
   const [showAllReviews, setShowAllReviews] = useState(false);
 
-  // derive from cart
   const existing = cart.find((i) => Number(i.id) === productId);
   const derivedCount = existing ? Number(existing.quantity) : 1;
   const [local, setLocal] = useState(() => ({
@@ -71,7 +81,6 @@ export const ProductDetails = () => {
 
   const canSubmit = Boolean(reviewComment && reviewRating && !submittingReview);
 
-  // One-time highlight storage (persisted so it won't re-highlight)
   const HIGHLIGHTED_REVIEWS_KEY = "highlighted_reviews_v1";
   const [highlightedReviews, setHighlightedReviews] = useState(() => {
     try {
@@ -82,7 +91,6 @@ export const ProductDetails = () => {
     }
   });
 
-  // transient id of review that was just created — used to show sparkle once
   const [recentlyCreatedReviewId, setRecentlyCreatedReviewId] = useState(null);
 
   const { items: savedItems = [], save, remove } = useSaved();
@@ -103,7 +111,7 @@ export const ProductDetails = () => {
         JSON.stringify(Array.from(setObj)),
       );
     } catch (e) {
-      // ignore storage errors
+      //
     }
   }
 
@@ -125,16 +133,13 @@ export const ProductDetails = () => {
 
     const description = p.description ?? p.short_description ?? "";
 
-    // IMPORTANT: do not compute final_price or discount here — server is authoritative.
     return { ...p, colours, weight, description };
   };
 
-  // Use Intl.NumberFormat when possible
   function formatMoney(val, currencyLabel) {
     if (val == null) return "";
     const n = Number(val);
     if (!Number.isFinite(n)) return String(val);
-    // If currency looks like an ISO code (3 letters), prefer Intl currency formatting
     if (
       currencyLabel &&
       typeof currencyLabel === "string" &&
@@ -148,22 +153,19 @@ export const ProductDetails = () => {
           maximumFractionDigits: 2,
         }).format(n);
       } catch (e) {
-        // fallback to numeric format
+        //
       }
     }
     return n.toFixed(2) + (currencyLabel ? " " + currencyLabel : "");
   }
 
-  // Simplified price display: trust server final_price first, then discount.price_after, then local fallback (display only)
   function getPriceDisplay(product) {
     const price = Number(product?.price ?? 0);
     const serverFinal =
       product?.final_price != null ? Number(product.final_price) : null;
 
-    // discount object from server (or null)
     const discount = product?.discount ?? null;
 
-    // determine priceAfter to use for UI:
     let priceAfter = null;
     if (serverFinal != null && Number.isFinite(serverFinal)) {
       priceAfter = serverFinal;
@@ -179,7 +181,6 @@ export const ProductDetails = () => {
       discount.value != null &&
       !Number.isNaN(Number(discount.value))
     ) {
-      // non-authoritative client-side computation only for display
       const pct = Number(discount.value) / 100;
       priceAfter = Math.max(0, Number((price * (1 - pct)).toFixed(2)));
     } else if (
@@ -198,7 +199,6 @@ export const ProductDetails = () => {
 
     const hasDiscount = Number(price) > Number(priceAfter);
 
-    // displayPercent: prefer server-provided percent value if present
     let displayPercent = null;
     if (discount && discount.type === "percent" && discount.value != null) {
       displayPercent = `-${Math.round(Number(discount.value))}%`;
@@ -215,7 +215,6 @@ export const ProductDetails = () => {
     };
   }
 
-  // helper: fetch similar by category id
   const fetchSimilar = async (categoryId, signal = null) => {
     if (!categoryId) {
       setSimilar([]);
@@ -248,7 +247,6 @@ export const ProductDetails = () => {
     }
   };
 
-  // NEW: fetch items for slider (all products, per_page)
   const fetchAllForSlider = async (signal = null) => {
     setLoadingSliderItems(true);
     try {
@@ -284,11 +282,9 @@ export const ProductDetails = () => {
 
       if (!res.ok) {
         const text = await res.text().catch(() => null);
-        // distinguish common cases
         if (res.status === 404) {
           setProductError(`Product not found (404)`);
         } else if (res.status === 401) {
-          // unauthenticated — don't treat as fatal for product loading
           console.warn("loadProduct: unauthenticated when fetching product");
           setProductError(null);
         } else {
@@ -303,13 +299,8 @@ export const ProductDetails = () => {
       const payload = json && json.data ? json.data : json;
       const normalized = normalizeProduct(payload);
 
-      // debug log (remove in production)
-      console.log("loadProduct: fetched payload =", payload);
-
-      // clear previous product error now that we have fresh data
       setProductError(null);
 
-      // preserve server-provided final_price and discount; do not override
       if (payload && payload.final_price != null) {
         normalized.final_price = payload.final_price;
       }
@@ -319,7 +310,6 @@ export const ProductDetails = () => {
 
       setProduct(normalized);
 
-      // optional: set rating safely if fields exist
       if (normalized.user_rating) setRating(Number(normalized.user_rating));
       else if (normalized.rating) setRating(Math.round(normalized.rating));
 
@@ -327,7 +317,6 @@ export const ProductDetails = () => {
         setCategoryTitle(normalized.category.title);
       else if (payload && payload.category_id) setCategoryTitle("");
 
-      // fetch related data but do not block the main flow
       fetchAllForSlider().catch(() => {});
       try {
         const catId =
@@ -336,11 +325,10 @@ export const ProductDetails = () => {
           normalized?.category?.id;
         if (catId) fetchSimilar(catId).catch(() => {});
       } catch (e) {
-        // ignore
+        //
       }
     } catch (err) {
       if (err && err.name === "AbortError") {
-        // aborted by cleanup — ignore
         return;
       }
       console.error("loadProduct error:", err);
@@ -358,7 +346,6 @@ export const ProductDetails = () => {
   }, [API_BASE, productId]);
 
   useEffect(() => {
-    // if category changes later, reload similar
     if (!product) {
       setSimilar([]);
       return;
@@ -372,7 +359,6 @@ export const ProductDetails = () => {
   }, [product?.category_id]);
 
   useEffect(() => {
-    // load slider items on mount as well (fallback)
     const controller = new AbortController();
     fetchAllForSlider(controller.signal).catch(() => {});
     return () => controller.abort();
@@ -410,7 +396,7 @@ export const ProductDetails = () => {
         return next;
       });
       setRecentlyCreatedReviewId(null);
-    }, 1600); // a bit shorter than CSS animation to ensure user sees it
+    }, 1600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentlyCreatedReviewId]);
@@ -419,21 +405,17 @@ export const ProductDetails = () => {
     try {
       persistHighlightedReviews(highlightedReviews);
     } catch {
-      // ignore
+      //
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightedReviews]);
 
   useEffect(() => {
-    // cleanup: when productId changes (navigate to other product), we reset recentlyCreatedReviewId
     return () => {
       setRecentlyCreatedReviewId(null);
     };
   }, [productId]);
 
-  // -----------------------
-  // Lazy Swiper loading state
-  // -----------------------
   const [swiperLoaded, setSwiperLoaded] = useState(false);
   const [SwiperComponents, setSwiperComponents] = useState({
     Swiper: null,
@@ -442,17 +424,11 @@ export const ProductDetails = () => {
   });
 
   useEffect(() => {
-    // load Swiper only on this product page (deferred)
     let mounted = true;
-    // we only start loading Swiper when the component is mounted and product is available
-    // you can change condition to e.g. when slider visible or on user interaction
     if (!mounted) return;
-    // Start dynamic import but don't block rendering
     (async () => {
       try {
         const mod = await import("swiper/react");
-        // load CSS separately
-        // dynamic import of CSS works with Vite and will create a separate CSS request
         await Promise.all([
           import("swiper/css"),
           import("swiper/css/pagination"),
@@ -470,22 +446,18 @@ export const ProductDetails = () => {
           setSwiperLoaded(true);
         }
       } catch (err) {
-        // fail silently — keep fallback UI
+        //
         console.warn("Swiper dynamic import failed", err);
       }
     })();
     return () => {
       mounted = false;
     };
-  }, []); // load once on mount
+  }, []);
 
-  // -----------------------
-  // add/update processing
-  // -----------------------
   const [isProcessingAdd, setIsProcessingAdd] = useState(false);
 
   const handleCounterChange = (arg) => {
-    // support both signature: onChange(newCount) or onChange(updater)
     let newCount;
     if (typeof arg === "function") {
       newCount = arg(local.count);
@@ -505,10 +477,8 @@ export const ProductDetails = () => {
     setIsProcessingAdd(true);
     try {
       if (local.isAdded) {
-        // update existing quantity
         await updateQuantity(productId, qty);
       } else {
-        // add new item with final price
         const itemPrice = Number(priceInfo?.final ?? product.price ?? 0);
         await addToCart({
           id: Number(product.id ?? product.product_id),
@@ -693,7 +663,6 @@ export const ProductDetails = () => {
         }));
       }
 
-      // Set recentlyCreatedReviewId ONLY for 5★ reviews
       if (createdId && Number(reviewRating || 0) === 5) {
         setRecentlyCreatedReviewId(String(createdId));
         console.log(
@@ -702,14 +671,13 @@ export const ProductDetails = () => {
         );
       }
 
-      // refresh similar after review submit
       try {
         const catId = normalized?.category_id ?? product?.category_id;
         if (catId) {
           await fetchSimilar(catId).catch(() => {});
         }
       } catch (e) {
-        // ignore
+        //
       }
 
       setReviewComment("");
@@ -801,7 +769,6 @@ export const ProductDetails = () => {
                 ))}
               </SwiperComponents.Swiper>
             ) : (
-              /* Fallback: simple vertical stack of thumbnails (no JS heavy lib) */
               <div className="absolute top-2 left-0">
                 {(Array.isArray(sliderItems) && sliderItems.length > 0
                   ? sliderItems

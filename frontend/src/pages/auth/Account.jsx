@@ -6,10 +6,10 @@ import { Button } from "../../components/ui/Button/Button.jsx";
 import { useAuth } from "../../context/auth/useAuth.js";
 
 /**
- * Компонент Account - UI для входа и регистрации со вкладками (Tabs).
+ * Компонент Account - интерфейс для входа и регистрации пользователей, а также личный кабинет (Dashboard) для авторизованных пользователей: Orders, Downloads, Addresses, Account details, Logout.
  *
- * 1. Делает POST /api/login и /api/register на бекенд (Laravel) с включёнными cookie (credentials: "include") и CSRF-токеном
- * 2. После успешного ответа обновляет контекст пользователя через fetchUser() и показывает приветствие.
+ * Работает с бэкендом (Laravel) через API: /api/login, /api/register, /api/orders и пр., используя cookie-based аутентификацию и CSRF.
+ *  После успешного ответа обновляет контекст пользователя через fetchUser() и показывает приветствие.
  */
 
 export const Account = () => {
@@ -94,8 +94,7 @@ export const Account = () => {
   const loadOrders = async () => {
     setOrdersLoading(true);
     try {
-      await getCsrf(); // ensure XSRF cookie — optional
-      // if already done
+      await getCsrf();
       const res = await fetch(`${BACKEND}/api/orders`, {
         credentials: "include",
         headers: {
@@ -110,7 +109,6 @@ export const Account = () => {
       }
       if (!res.ok) throw new Error("Failed to load orders");
       const json = await res.json();
-      // json is paginated: use json.data array
       const list = Array.isArray(json.data) ? json.data : json;
       setOrders(list);
     } catch (err) {
@@ -552,20 +550,6 @@ export const Account = () => {
                   }}
                 />
               </div>
-              {/* <button
-                onClick={async () => {
-                  try {
-                    await logout(); // разлогин (AuthProvider.logout) — уже не делает redirect
-                    navigate("/", { replace: true }); // внутри SPA — плавный переход на главную
-                  } catch (err) {
-                    console.error("Logout failed", err);
-                    // при необходимости показать ошибку пользователю
-                  }
-                }}
-                className="inline-block px-4 py-2 border rounded text-white bg-black"
-              > */}
-              {/* Confirm logout
-              </button> */}
             </div>
           )}
         </div>

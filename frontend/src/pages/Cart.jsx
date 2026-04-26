@@ -7,8 +7,24 @@ import { computeDiscount } from "../utils/coupons.js";
 import { useAuth } from "../context/auth/useAuth.js";
 
 /**
- * Компонент Корзина для товаров.
- * Отображает содержимое корзины, позволяет менять количество и удалять товары, управлять адресом доставки (страна/город/индекс), рассчитывать стоимость доставки, применять купоны и переходить к оформлению (checkout). Также проводит локальную и серверную валидацию наличия товаров.
+ * Cart - компонент Корзина для товаров.
+ *
+ * Отображает товары в корзине, позволяет изменить количество, удалить позицию, выбрать адрес доставки (страна/город/индекс), рассчитать стоимость доставки, применить купон и перейти к оформлению заказа.
+ * Выполняет локальную и серверную валидацию наличия товаров перед обновлением.
+ * Использует sessionStorage для сохранения snapshot при переходе к оформлению (если пользователь не авторизован).
+ *
+ * Ключевые состояния (useState):
+ *
+ * couponCode: вводимый код купона
+ * couponApplying: флаг применения купона (запрос)
+ * appliedCoupon: объект применённого купона или null
+ * discountAmount: сумма скидки (число)
+ * couponError: сообщение об ошибке купона
+ * selectedCountry, selectedCity, selectedPostal: выбранные значения адреса
+ * applied: флаг — пользователь нажал UPDATE TOTALS и расчёт применён
+ * shipping: рассчитанная стоимость доставки
+ * isProcessing: флаг обработки при proceed to checkout
+ * showAuthModal: отображение модального окна для логина
  */
 export const Cart = () => {
   // Код вводимого купона (строка)
@@ -50,7 +66,6 @@ export const Cart = () => {
   // рассчитанная стоимость доставки (устанавливается по UPDATE TOTALS)
   const [shipping, setShipping] = useState(0);
 
-  // add near other useState hooks
   const [isProcessing, setIsProcessing] = useState(false);
 
   const { user } = useAuth();
@@ -76,7 +91,7 @@ export const Cart = () => {
     [cart],
   );
 
-  // total = subtotal + shipping (shipping set by Update totals)
+  // total = subtotal + shipping
   const total = useMemo(() => {
     const sub = Number(subtotal) || 0;
     const ship = Number(shipping) || 0;
@@ -109,7 +124,7 @@ export const Cart = () => {
     const c = (country || "").toString().trim().toLowerCase();
     const ci = (city || "").toString().trim().toLowerCase();
 
-    // Russia
+    // Россия
     if (c === "russia" || c === "россия" || c === "рф") {
       if (ci === "moscow" || ci === "москва") return 22;
       if (
@@ -122,13 +137,13 @@ export const Cart = () => {
       return 22; // default Russia
     }
 
-    // Belarus
+    // Беларусь
     if (c === "belarus" || c === "беларусь") {
       if (ci === "minsk" || ci === "минск") return 51;
       return 51; // default Belarus -> 51
     }
 
-    // India
+    // Индия
     if (c === "india" || c === "индия") {
       if (ci === "delhi" || ci === "дели") return 80;
       return 80;
@@ -145,7 +160,6 @@ export const Cart = () => {
       return 100;
     }
 
-    // default for others
     return 100;
   };
 
@@ -218,7 +232,6 @@ export const Cart = () => {
         if (ctxHasCountry) setShippingCountry("");
       }
     }
-    // include dependencies referenced in effect
   }, [
     subtotal,
     shipping,
@@ -240,7 +253,6 @@ export const Cart = () => {
   const validateLocalStock = () => {
     const updates = []; // { id, title, requested, available }
     cart.forEach((p) => {
-      // if product has stock field (number), use it
       const stock = p.stock === undefined ? undefined : Number(p.stock);
       if (!Number.isNaN(stock) && stock >= 0) {
         const requested = Number(p.quantity) || 0;
@@ -270,7 +282,7 @@ export const Cart = () => {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
       }
-      const data = await res.json(); // expected [{ id, availableQuantity }]
+      const data = await res.json(); //  [{ id, availableQuantity }]
       return { ok: true, data };
     } catch (err) {
       console.error("Server validation error:", err);
@@ -285,20 +297,16 @@ export const Cart = () => {
       return;
     }
 
-    // 1) Try local validation first
     const localUpdates = validateLocalStock();
     if (localUpdates.length > 0) {
-      // Apply local corrections
       localUpdates.forEach((u) => {
         if (u.available > 0) {
           updateQuantity(u.id, u.available);
         } else {
-          // available == 0 -> remove from cart
           removeFromCart(u.id);
         }
       });
 
-      // Notify user
       const msgs = localUpdates.map((u) =>
         u.available > 0
           ? `${u.title} доступен(а) только в количестве ${u.available}. Количество обновлено.`
@@ -308,17 +316,14 @@ export const Cart = () => {
       return;
     }
 
-    // 2) If no local stock info for items, fallback to server validation
     const items = cart.map((p) => ({ id: p.id, quantity: p.quantity }));
     const serverRes = await validateServerStock(items);
 
     if (!serverRes.ok) {
-      // server error — inform user but don't change cart
       alert("Не удалось проверить наличие на складе. Попробуйте позже.");
       return;
     }
 
-    // serverRes.data expected list of { id, availableQuantity }
     const serverUpdates = [];
     serverRes.data.forEach((it) => {
       const requested = cart.find((p) => p.id === it.id)?.quantity || 0;
@@ -348,11 +353,9 @@ export const Cart = () => {
       return;
     }
 
-    // if everything OK
     alert("Cart updated — все товары в наличии в запрошенном количестве.");
   };
 
-  // demo options (replace with API-driven options if needed)
   const countryOptions = [
     { value: "", label: "SELECT A COUNTRY" },
     { value: "Russia", label: "Russia" },
@@ -447,7 +450,6 @@ export const Cart = () => {
     setCouponError("");
   };
 
-  // New effect: ensure coupon validity when subtotal changes
   useEffect(() => {
     if (!appliedCoupon) {
       console.log("coupon effect:", {
@@ -455,16 +457,13 @@ export const Cart = () => {
         appliedCoupon,
         discountAmount,
       });
-      // no coupon — ensure discount cleared
       if (discountAmount !== 0) setDiscountAmount(0);
       return;
     }
 
-    // check if coupon has a minTotal requirement and subtotal falls below it
     const minTotal = appliedCoupon.minTotal || appliedCoupon.min_amount || 0;
     const newDiscount = computeDiscount(appliedCoupon, subtotal);
 
-    // If coupon requires a minimum subtotal and it's no longer met, remove coupon
     if (minTotal > 0 && subtotal < minTotal) {
       setAppliedCoupon(null);
       setDiscountAmount(0);
@@ -476,7 +475,6 @@ export const Cart = () => {
       return;
     }
 
-    // If computed discount is zero (coupon yields nothing at this subtotal) — remove it
     if (!newDiscount || Number(newDiscount) <= 0) {
       setAppliedCoupon(null);
       setDiscountAmount(0);
@@ -494,7 +492,6 @@ export const Cart = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtotal, appliedCoupon]);
 
-  // proceed to checkout handler (Option B: navigate to internal checkout page)
   const handleProceedToCheckout = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
@@ -564,7 +561,7 @@ export const Cart = () => {
           JSON.stringify(checkoutSnapshot),
         );
       } catch (err) {
-        // ignore
+        //
       }
 
       // Перейти на страницу оформления
@@ -584,7 +581,7 @@ export const Cart = () => {
         <h2 className="text-3xl text-center mb-16">Shopping Cart</h2>
 
         <div className="flex justify-between">
-          {/* left column */}
+          {/* левая колонка */}
           <div className="w-145 mb-10">
             {cart.map((product) => (
               <div
@@ -687,7 +684,7 @@ export const Cart = () => {
             </div>
           </div>
 
-          {/* right column */}
+          {/* правая колонка */}
           <div className="w-145 pt-10 px-15 pb-12">
             <h3 className="text-2xl mb-11">Cart totals</h3>
 
@@ -764,7 +761,7 @@ export const Cart = () => {
               </div>
             </div>
 
-            {/* show total only when everything selected and update applied */}
+            {/* показывать общее количество только тогда, когда все выбрано*/}
             {subtotal > 0 &&
             selectedCountry &&
             selectedCity &&

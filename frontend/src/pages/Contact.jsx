@@ -1,6 +1,13 @@
 import React from "react";
 import { Select } from "../components/ui/Select/Select.jsx";
 
+/**
+ *
+ * Contact Us - странца с формой обратной связи: поля имени/фамилии, email, селект (например, тема) и сообщение.
+ *
+ *  Отправка осуществляется кнопкой SEND
+ */
+
 export const Contact = () => {
   return (
     <div className="my-62">

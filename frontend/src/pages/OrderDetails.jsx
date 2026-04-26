@@ -1,13 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
+/**
+ *
+ * OrderDetails - страница подробностей заказа: загружает заказ по id, отображает основные данные (номер, дата, платеж, адрес, контакты) и список позиций с итогами (subtotal, shipping, total).
+ * Обрабатывает состояния загрузки, ошибки, отсутствие доступа и неавторизованность.
+ *
+ * Ключевые состояния (useState / useEffect):
+ *
+ * order: объект заказа (null пока не загружен).
+ * status: "idle" | "loading" | "success" | "notfound" | "forbidden" | "unauth" | "error" — контролирует UI.
+ * error: строка с текстом ошибки (при status === "error").
+ * temsWithKeys: массив order.items, но с гарантированными уникальными ключами _key (для render).
+ */
+
 export const OrderDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
   // хуки объявляем сразу, чтобы порядок всегда был одинаковым
   const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState("idle"); // idle | loading | success | notfound | forbidden | unauth | error
+  const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
   const [itemsWithKeys, setItemsWithKeys] = useState([]);
 

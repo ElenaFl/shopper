@@ -1,5 +1,11 @@
 import React from "react";
 
+/**
+ *
+ * Privacy Policy - статическая страницаю
+ * Информирует пользователей о политике конфиденциальности, использовании cookies и мерах безопасности.
+ */
+
 export const Privacy = () => {
   return (
     <div className="mt-55 mb-62">

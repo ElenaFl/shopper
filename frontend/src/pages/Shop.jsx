@@ -8,14 +8,30 @@ import { Toggle } from "../components/ui/Toggle/Toggle.jsx";
 import { Pagination } from "../components/ui/Pagination/Pagination.jsx";
 import { useDebounce } from "../hooks/useDebounce.js";
 
+/**
+ *
+ * Shop  - страница каталога товаров: поиск, фильтрация, сортировка, фильтр по цене/скидкам/наличию, категория, постраничная навигация и отображение сетки карточек товаров.
+ * Управляет URL-параметрами (search params) для сохранения состояния фильтров в адресной строке и поддерживает навигацию назад/вперёд.
+ *
+ * Ключевые состояния (useState / useEffect):
+ *
+ * query: контролируемый ввод поиска; debouncedQuery — задержанное значение (300ms).
+ * selected: выбранная категория (category_id) ("" означает все).
+ * sort: сортировка (например, price_asc / price_desc).
+ * priceMax: максимальная цена (с дебаунсом debouncedPriceMax).
+ * onlyOnSale, onlyInStock: булевы фильтры.
+ * page: текущая страница пагинации (PER_PAGE = 6).
+ * products: ответ от API — либо массив, либо paginator { data, meta }.
+ * categories: список категорий для селекта.
+ * loading, error: состояния загрузки/ошибки. *
+ */
+
 export const Shop = () => {
   const navigate = useNavigate();
 
-  // Search input and debounce
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
 
-  // URL search params wrapper
   const [searchParams, setSearchParams] = useSearchParams();
   const debugSetSearchParams = (params, options) => {
     console.log(
@@ -29,24 +45,19 @@ export const Shop = () => {
     return setSearchParams(params, options);
   };
 
-  // initial values from URL
   const initialCategory = searchParams.get("category_id") || "";
   const initialSort = searchParams.get("sort") || "";
   const initialPriceMax = Number(searchParams.get("price_max") || 1000);
   const initialOnlyOnSale = searchParams.get("on_sale") ? true : false;
   const initialPage = Number(searchParams.get("page") || 1);
 
-  // local state
   const [selected, setSelected] = useState(initialCategory);
-  // "" means all
   const [sort, setSort] = useState(initialSort);
   const [priceMax, setPriceMax] = useState(initialPriceMax);
-  // single slider => max limit
   const [onlyOnSale, setOnlyOnSale] = useState(initialOnlyOnSale);
-  const debouncedPriceMax = useDebounce(priceMax, 400); // debounce to avoid rapid requests
+  const debouncedPriceMax = useDebounce(priceMax, 400);
   const [onlyInStock, setOnlyInStock] = useState(false);
 
-  // pagination
   const [page, setPage] = useState(initialPage);
   const PER_PAGE = 6;
 
@@ -55,21 +66,16 @@ export const Shop = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // helper: apply params to URL and immediately sync local state
   const applyParams = (params) => {
     debugSetSearchParams(params);
-    // sync selected: absent or 'all' -> ""
     if (params.category_id && params.category_id !== "all")
       setSelected(String(params.category_id));
     else setSelected("");
-    // sync sort
     setSort(params.sort || "");
-    // sync priceMax if present
     if (params.price_max != null) {
       const pm = Number(params.price_max);
       if (!Number.isNaN(pm)) setPriceMax(pm);
     }
-    // sync on_sale
     if (params.on_sale != null) {
       setOnlyOnSale(
         params.on_sale === "1" ||
@@ -77,10 +83,8 @@ export const Shop = () => {
           params.on_sale === true,
       );
     } else {
-      // if absent in params, default to false
       setOnlyOnSale(false);
     }
-    // sync page
     if (params.page != null) {
       const p = Number(params.page);
       if (!Number.isNaN(p) && p > 0) setPage(p);
@@ -89,7 +93,6 @@ export const Shop = () => {
     }
   };
 
-  // load categories
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
@@ -114,7 +117,6 @@ export const Shop = () => {
     return () => controller.abort();
   }, []);
 
-  // fetch products (uses debouncedPriceMax, debouncedQuery, page)
   const fetchProducts = async () => {
     setError(null);
     let loadingTimer = null;
@@ -162,15 +164,12 @@ export const Shop = () => {
         serverMeta.last_page &&
         serverMeta.current_page > serverMeta.last_page
       ) {
-        // set page to 1 and schedule a re-fetch (fetchProducts will be triggered by effect watching page)
         setPage(1);
         return;
       }
-      // if backend returns paginator structure { data: [...], meta: {...} }
       if (json && Array.isArray(json.data)) {
         setProducts(json);
       } else if (Array.isArray(json)) {
-        // fallback: raw array
         setProducts({
           data: json,
           meta: {
@@ -181,7 +180,6 @@ export const Shop = () => {
           },
         });
       } else {
-        // try items wrapper
         const items = json?.data ?? json?.items ?? [];
         setProducts(
           Array.isArray(items)
@@ -199,7 +197,6 @@ export const Shop = () => {
       }
     } catch (err) {
       if (err.name === "AbortError") return;
-      console.error("fetch error products", err);
       setError("Failed to load products");
     } finally {
       clearTimeout(loadingTimer);
@@ -210,13 +207,11 @@ export const Shop = () => {
     }
   };
 
-  // refetch when category, sort, debouncedQuery, debouncedPriceMax, onlyOnSale or page change
   useEffect(() => {
     fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, sort, debouncedQuery, debouncedPriceMax, onlyOnSale, page]);
 
-  // options
   const categoryOptions = [
     { value: "all", label: "Sort by category" },
     ...(Array.isArray(categories)
@@ -230,25 +225,18 @@ export const Shop = () => {
     { value: "price_desc", label: "Price: high to low" },
   ];
 
-  // handlers
-
-  // When user types and debouncedQuery stabilizes we clear category and apply search
   useEffect(() => {
     const q = (debouncedQuery || "").trim();
     if (q !== "") {
       const params = {};
-      // do NOT include category_id — search overrides category
       if (sort) params.sort = sort;
       if (priceMax != null && Number(priceMax) > 0)
         params.price_max = String(priceMax);
       params.search = q;
-      // include on_sale state in URL when searching
       if (onlyOnSale) params.on_sale = "1";
-      params.page = 1; // reset page on new search
+      params.page = 1;
       applyParams(params);
-      // will set selected = ""
     } else {
-      // search cleared — restore category if present
       const params = {};
       if (selected) params.category_id = selected;
       if (sort) params.sort = sort;
@@ -262,7 +250,6 @@ export const Shop = () => {
   }, [debouncedQuery]);
 
   const onSelectCategory = (v) => {
-    // reset to first page immediately
     setPage(1);
 
     if (v === "all" || v === "" || v == null) {
@@ -272,13 +259,10 @@ export const Shop = () => {
         params.price_max = String(priceMax);
       if (onlyOnSale) params.on_sale = "1";
       params.page = 1;
-      // clear search
       applyParams(params);
-      // sets selected = ""
       setQuery("");
       return;
     }
-    // selecting category cancels search
     setQuery("");
     const params = { category_id: v, page: 1 };
     if (sort) params.sort = sort;
@@ -289,7 +273,6 @@ export const Shop = () => {
   };
 
   const onChangeSort = (v) => {
-    // reset page
     setPage(1);
 
     const params = {};
@@ -304,19 +287,14 @@ export const Shop = () => {
     applyParams(params);
   };
 
-  // when user presses Filter on Trackbar: apply price filter, KEEP category, RESET sort, cancel search
   const onTrackFilter = (value) => {
     setPriceMax(value);
-    // immediately reset page to 1 to avoid fetching stale page
     setPage(1);
 
     const params = {};
-    if (selected) params.category_id = selected; // keep category
-    // DO NOT include sort -> this resets second Select to default
+    if (selected) params.category_id = selected;
     if (value != null && Number(value) > 0) params.price_max = String(value);
     if (onlyOnSale) params.on_sale = "1";
-    // cancel search (price filter takes precedence)
-    // no params.search
     params.page = 1;
     applyParams(params);
 
@@ -324,7 +302,6 @@ export const Shop = () => {
     setQuery("");
   };
 
-  // sync search params -> state (fallback when user navigates/back)
   useEffect(() => {
     const c = searchParams.get("category_id") || "";
     if (c !== selected) setSelected(c);
@@ -338,10 +315,10 @@ export const Shop = () => {
     const osBool = os ? true : false;
     if (osBool !== onlyOnSale) setOnlyOnSale(osBool);
     const p = Number(searchParams.get("page") || 1);
-    if (!Number.isNaN(p) && p !== page) setPage(p); // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!Number.isNaN(p) && p !== page) setPage(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
-  // derive displayed items and pagination meta
   const displayed =
     products && Array.isArray(products.data) ? products.data : [];
   const paginationMeta =
@@ -358,7 +335,6 @@ export const Shop = () => {
           }
         : null;
 
-  // VSTAVIT: compute whether to show pagination
   const totalItems = Number(paginationMeta?.total ?? 0);
   const perPageMeta = Number(
     paginationMeta?.per_page ?? paginationMeta?.perPage ?? PER_PAGE,
@@ -373,12 +349,9 @@ export const Shop = () => {
   const valueForSelect = selected === "" ? "all" : selected;
 
   const onToggleOnlyOnSale = (v) => {
-    // v — новое boolean value
     setOnlyOnSale(Boolean(v));
-    // reset page synchronously
     setPage(1);
 
-    // build params preserving current filters
     const params = {};
     if (selected) params.category_id = selected;
     if (sort) params.sort = sort;
@@ -403,7 +376,6 @@ export const Shop = () => {
     if (onlyOnSale) params.on_sale = "1";
     params.page = String(p);
     applyParams(params);
-    // applyParams will setPage; fetch triggered by effect
   };
 
   return (
@@ -425,7 +397,7 @@ export const Shop = () => {
                     params.price_max = String(priceMax);
                   params.search = (v || "").trim();
                   params.page = 1;
-                  applyParams(params); // clears category
+                  applyParams(params);
                 }}
                 onCancel={() => {
                   setQuery("");
