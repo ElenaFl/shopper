@@ -5,7 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * ChatMessage - модель сообщения в чат‑сессии
+ * Class ChatMessage
+ *
+ * Eloquent-модель сообщения в чат‑сессии.
+ *
  */
 
 class ChatMessage extends Model

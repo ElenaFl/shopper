@@ -6,6 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Http\Resources\CategoryResource;
 
+/**
+ * Class CategoryController
+ *
+ * Публичный API для категорий.
+ *
+ * Поведение:
+ * - index: возвращает список всех категорий (id, title, slug) через CategoryResource.
+ * - show: возвращает одну категорию через CategoryResource.
+ *
+ * Ответы:
+ * - 200 OK с ресурсами.
+ */
+
 class CategoryController extends Controller
 {
     /**

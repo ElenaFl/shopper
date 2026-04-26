@@ -8,9 +8,16 @@ use App\Models\Review;
 use App\Http\Resources\ReviewResource;
 
 /**
- * ReviewAdminController - контроллер для просмотра отзывов.
- *  Предназначен для получения постраничного списка отзывов с мета‑данными пользователя и товара.
-*/
+ * Class ReviewAdminController
+ *
+ * Админский API для просмотра отзывов.
+ *
+ * Поведение:
+ * - index: возвращает постраничный список отзывов с данными автора и товара.
+ *
+ * Ответы:
+ * - 200 OK с ReviewResource (пагинация).
+ */
 
 class ReviewAdminController extends Controller
 {

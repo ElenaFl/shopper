@@ -1,222 +1,141 @@
-import React, { useContext } from "react";
+import React, { useContext, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useSavedItems } from "../../../hooks/useSavedItems";
+import { useSaved } from "../../../context/save/useSaved.js";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 
 /**
- Компонент карточка.
- props.details — объект товара
- props.size — размеры
- props.onOpenDetails — колбэк открытия
- props.className, props.style — дополнительный класс/стиль (для анимации)
-*/
+ * Card — карточка товара.
+ *
+ * @param {Object} props
+ * @param {Object} props.details - Объект с данными продукта.
+ * @param {(number|string)} [props.details.id] - Идентификатор продукта.
+ * @param {(number|string)} [props.details.product_id] - Альтернативное поле идентификатора.
+ * @param {string} [props.details.title] - Название продукта.
+ * @param {string} [props.details.name] - Альтернативное название.
+ * @param {(number|string)} [props.details.price] - Базовая цена продукта.
+ * @param {(number|string)} [props.details.final_price] - Итоговая (финальная) цена (при наличии — авторитетна).
+ * @param {string} [props.details.currency] - Код валюты (ISO 3-letter).
+ * @param {string} [props.details.currency_code] - Альтернативное поле кода валюты.
+ * @param {string} [props.details.img_url] - URL изображения (приоритет).
+ * @param {string} [props.details.img] - Локальный путь изображения (альтернатива).
+ * @param {Object|string|number} [props.details.discount] - Объект/значение скидки (если есть). Ожидается структура { id, type, value, percent, price_after, ... } или поле discount_percent.
+ * @param {(string|number)} [props.details.discount_percent] - Процент скидки в стороннем формате.
+ * @param {(number|string)} [props.details.unit_price] - Цена за единицу (если отличается от displayPrice).
+ * @param {string} [props.details.sku] - Артикул (SKU).
+ *
+ * @param {Object} [props.size] - Размеры для рендеринга карточки.
+ * @param {(number|string)} [props.size.width] - Ширина в px (число или строка-число).
+ * @param {(number|string)} [props.size.height] - Высота в px.
+ * @param {(number|string)} [props.size.heightImg] - Высота области изображения в px.
+ *
+ * @param {string} [props.className=""] - Дополнительные CSS-классы для корневого контейнера.
+ * @param {Object} [props.style={}] - Дополнительный inline-стиль для корневого контейнера.
+ * @param {(function)} [props.onOpenDetails] - Колбэк открытия детализации товара; вызывается как onOpenDetails(id).
+ *
+ * Контекст/хуки:
+ * - Использует useSaved() для работы с сохранёнными товарами: ожидает { items, save, remove, add }.
+ * - Получает addToCart из CartContext для добавления товара в корзину.
+ *
+ * Поведение:
+ * - displayPrice = details.final_price ?? details.price
+ * - Если details.discount или discount_percent есть — отображается метка скидки; при отсутствии серверного поля вычисляется процент из цен как fallback.
+ * - Кнопка добавления в корзину вызывает addToCart({ id, title, price, img, quantity, sku }).
+ * - Внутренний div ведёт себя как кнопка: role="button", tabIndex=0, обработка Enter/Space.
+ */
 
-// helper: безопасно форматируем валюту
-const formatMoney = (value, currencyLabel) => {
+// форматирование отображения цены
+//  принимает value (число/строка/null) и currency (код валюты). Возвращает строку для отображения("$1,234.56" или "1 234,56 €" в зависимости от локали, Intel - класс для форматирования(валют и др.)).
+const formatMoney = (value, currency) => {
   if (value == null) return "";
-  const n = Number(value);
-  if (!Number.isFinite(n)) return String(value);
   try {
-    if (
-      currencyLabel &&
-      typeof currencyLabel === "string" &&
-      currencyLabel.length === 3
-    ) {
+    if (currency && typeof currency === "string" && currency.length === 3) {
       return new Intl.NumberFormat(undefined, {
         style: "currency",
-        currency: currencyLabel,
+        currency,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }).format(n);
+      }).format(Number(value));
     }
-  } catch (err) {
-    console.warn("formatMoney: failed to format currency, fallback used", err);
+  } catch (e) {
+    console.error("formatMoney Intl error:", e);
   }
-  return n.toFixed(2) + (currencyLabel ? " " + currencyLabel : "");
+  return Number(value).toFixed(2) + (currency ? ` ${currency}` : "");
 };
 
-// compute display percent for UI only (non-authoritative)
-const computeDisplayPercent = (original, final) => {
-  const o = Number(original);
-  const f = Number(final);
-  if (!Number.isFinite(o) || !Number.isFinite(f) || o <= 0) return null;
-  const pct = Math.round(((o - f) / o) * 100);
-  return pct > 0 ? `-${pct}%` : null;
-};
+// возвращает картинку или плейсхолдер
+const safeImg = (details) =>
+  details?.img_url ?? details?.img ?? "/images/placeholder.png";
 
-const safeSrc = (img, img_url) => {
-  if (img_url && typeof img_url === "string" && img_url.startsWith("http"))
-    return img_url;
-  if (!img) return "/images/placeholder.png";
-  const base = window.location.origin.replace(/\/$/, "");
-  return img.startsWith("/") ? base + img : base + "/" + img;
-};
-
-function normalizeDiscount(raw) {
-  if (!raw) return null;
-
-  if (Array.isArray(raw) && raw.length > 0) {
-    return normalizeDiscount(raw[0]);
-  }
-
-  if (typeof raw === "object") {
-    if (raw.discount && typeof raw.discount === "object") {
-      return normalizeDiscount(raw.discount);
-    }
-
-    const type = raw.type ?? null;
-    const value = raw.value ?? raw.amount ?? null;
-    const price_after = raw.price_after ?? raw.priceAfter ?? null;
-    const currency = raw.currency ?? raw.currency_code ?? null;
-
-    if (price_after != null) {
-      return {
-        type: type || (price_after != null ? "fixed" : null),
-        value: value != null ? Number(value) : null,
-        price_after: Number(price_after),
-        currency,
-      };
-    }
-
-    if (type === "percent" && (value != null || raw.value != null)) {
-      return { type: "percent", value: Number(value), currency };
-    }
-
-    if (value != null) {
-      return { type: "fixed", value: Number(value), currency };
-    }
-  }
-
-  return null;
-}
-
+// React.memo - (кеширует(запоминает для экономии вычислений) последний результат рендера для данных пропсов: компонент будет ре-рендериться только если props изменились по shallow-сравнению(поверхностное сравнение по значению пропсов))
 export const Card = React.memo((props) => {
-  const id = props.details?.id ?? props.details?.product_id ?? null;
-  const title = props.details?.title ?? props.details?.name ?? "";
-  const currency =
-    props.details?.currency ?? props.details?.currency_code ?? null;
-  const price = props.details?.price ?? props.details?.price_amount ?? null;
-  const img = props.details?.img ?? props.details?.img_url ?? null;
-  const rawDiscount =
-    props.details?.discount ?? props.details?.discounts ?? null;
-
-  // Normalize incoming discount shape (but avoid heavy calculations)
-  const discount = normalizeDiscount(rawDiscount);
+  // берём объект деталей продукта (d) из props.details; если нет — пустой объект (чтобы избежать ошибок при доступе к полям)
+  const d = props.details || {};
+  // для установления значения переменной id используем d.id, если он задан; иначе, если он null/undefined, то через оператор нулевого слияния (??) используем d.product_id (для нормализации данных, если данные поступят не из объекта продукта из ProductController, а из объекта сохраненного товара. например)
+  const id = d.id ?? d.product_id;
+  const title = d.title ?? d.name ?? "";
+  const origPrice = d.price != null ? Number(d.price) : null;
+  const finalPrice = d.final_price != null ? Number(d.final_price) : null;
+  const currency = d.currency ?? d.currency_code ?? null;
+  const imgSrc = safeImg(d);
 
   const { width, height, heightImg } = props.size || {};
+  // деструктурируем дополнительные props: className (по умолчанию пустая строка), style (по умолчанию пустой объект) и onOpenDetails (функция, если передана)
   const { className = "", style = {}, onOpenDetails } = props;
-  const { add } = useSavedItems();
-  const { items, save, remove } = useSavedItems({ user: props.user });
+
+  // используем хук useSavedItems (кастомный) для работы с сохранёнными товарами; передаём user из props. Получаем массив items и операции save/remove/add
+  // кастомный хук useSavedItems возвращает массив сохраненных товаров items и операции save/remove/add
+  const { items, save, remove, add } = useSaved();
   const savedEntry = items.find((s) => String(s.product_id) === String(id));
   const savedActive = Boolean(savedEntry);
 
-  // get cart functions
   const { addToCart } = useContext(CartContext);
 
-  // unified helpers
-  const parsePrice = (v) =>
-    v === null || v === undefined || v === "" ? null : Number(String(v).trim());
-
-  const origPrice = parsePrice(price);
-
-  // Prefer server final_price (authoritative) or discount.price_after for display.
-  // Fallback to discount percent/fixed calculation using origPrice, then finally to snapshot/unit.
-  const serverFinalRaw = props.details?.final_price ?? null;
-  const serverFinal =
-    serverFinalRaw != null && !Number.isNaN(Number(serverFinalRaw))
-      ? Number(serverFinalRaw)
-      : null;
-
-  // discount already normalized above: may have { type, value, price_after }
-  let priceAfterForDisplay = null;
-  if (serverFinal != null && Number.isFinite(serverFinal)) {
-    priceAfterForDisplay = serverFinal;
-  } else if (
-    discount?.price_after != null &&
-    Number.isFinite(Number(discount.price_after))
-  ) {
-    priceAfterForDisplay = Number(discount.price_after);
-  } else if (
-    discount?.type === "percent" &&
-    discount?.value != null &&
-    !Number.isNaN(Number(discount.value)) &&
-    origPrice != null
-  ) {
-    priceAfterForDisplay = Math.max(
-      0,
-      Number((origPrice * (1 - Number(discount.value) / 100)).toFixed(2)),
-    );
-  } else if (
-    discount?.type === "fixed" &&
-    discount?.value != null &&
-    origPrice != null
-  ) {
-    priceAfterForDisplay = Math.max(
-      0,
-      Number((origPrice - Number(discount.value)).toFixed(2)),
-    );
-  } else {
-    // fallback: use snapshot/unit if available, otherwise origPrice
-    const getUnitPrice = (it = {}) => {
-      const rawAfter =
-        it?.price_after ?? it?.product?.price_after ?? it?.priceAfter ?? null;
-      if (rawAfter != null && Number.isFinite(Number(rawAfter)))
-        return Number(rawAfter);
-      const raw = it?.price ?? it?.product?.price ?? it?.price_amount ?? null;
-      return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null;
-    };
-    const snapshotSource = savedEntry ?? props.details;
-    const unit = getUnitPrice(snapshotSource);
-    priceAfterForDisplay = unit != null ? unit : origPrice;
-  }
-
-  // final flags for rendering
-  const priceAfter = priceAfterForDisplay;
+  const displayPrice = finalPrice ?? origPrice;
   const hasDiscount =
-    Number.isFinite(Number(origPrice)) &&
-    Number.isFinite(Number(priceAfter)) &&
-    Number(origPrice) > Number(priceAfter);
+    finalPrice != null && origPrice != null && origPrice > finalPrice;
+  const discountLabel =
+    d.discount?.percent ??
+    d.discount_percent ??
+    (hasDiscount
+      ? `${Math.round(((origPrice - displayPrice) / origPrice) * 100)}%`
+      : null);
 
-  const discountPercentLabel = (() => {
-    if (discount && discount.type === "percent" && discount.value != null) {
-      return `-${Math.round(Number(discount.value))}%`;
-    }
-    return computeDisplayPercent(origPrice, priceAfter);
-  })();
+  const unitForCart = d.unit_price ?? displayPrice ?? origPrice ?? 0;
 
-  const imgSrc = safeSrc(img, props.details?.img_url);
-
-  // handler: add product to cart using unified unit price from snapshot (keep current behavior)
-  const getUnitPriceForCart = (it = {}) => {
-    const rawAfter = it?.price_after ?? it?.product?.price_after ?? null;
-    if (rawAfter != null && Number.isFinite(Number(rawAfter)))
-      return Number(rawAfter);
-    const raw = it?.price ?? it?.product?.price ?? it?.price_amount ?? null;
-    return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : 0;
-  };
-
-  const snapshotSourceForCart = savedEntry ?? props.details;
-  const unitForCart = getUnitPriceForCart(snapshotSourceForCart);
-
-  const handleAddToCartClick = (e) => {
-    e?.stopPropagation();
-    const product = props.details || {};
-    const cartItem = {
-      id: Number(product.id ?? product.product_id),
-      title: product.title ?? product.name ?? "",
-      price: Number(unitForCart),
-      img: product.img ?? product.img_url ?? null,
-      quantity: 1,
-      sku: product.sku ?? product.SKU ?? null,
-    };
-    addToCart(cartItem);
-  };
+  // обработчик клика по кнопке «в корзину» на карточке товара. Его задачи: Предотвратить побочный эффект клика по карточке. e?.stopPropagation() останавливает всплытие события, чтобы родительский onClick (открытие страницы товара) не срабатывал.
+  // useCallback(fn, deps (зависимости)-[id, title, unitForCart, imgSrc, d.sku, addToCart]) возвращает мемоизированную версию функции fn, которая сохраняется между рендерами, пока не изменится хотя бы одна зависимость из deps.
+  const handleAddToCartClick = useCallback(
+    (e) => {
+      //защито от отсутствия addToCart()
+      if (typeof addToCart !== "function")
+        return console.warn("addToCart not available");
+      e?.stopPropagation();
+      // вызывает addToCart из CartContext, передает в нее аргументы
+      addToCart({
+        id: Number(id),
+        title,
+        price: Number(unitForCart),
+        img: imgSrc,
+        quantity: 1,
+        sku: d.sku ?? null,
+      });
+    },
+    [id, title, unitForCart, imgSrc, d.sku, addToCart],
+  );
 
   return (
     <div
       className={`cursor-pointer ${className}`}
       style={{ width: `${width}px`, height: `${height}px`, ...style }}
       onClick={() => onOpenDetails && onOpenDetails(id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenDetails && onOpenDetails(id);
+        }
+      }}
     >
       <div
         style={{ height: `${heightImg}px` }}
@@ -225,7 +144,7 @@ export const Card = React.memo((props) => {
         <img
           loading="lazy"
           src={imgSrc}
-          alt={title ?? ""}
+          alt={title || ""}
           className="w-full h-full object-cover"
         />
 
@@ -258,19 +177,15 @@ export const Card = React.memo((props) => {
             onClick={async (e) => {
               e.stopPropagation();
               try {
-                if (!id) {
-                  alert("Нет продукта");
-                  return;
-                }
+                if (!id) return alert("Нет продукта");
                 if (savedActive) {
                   await remove({
                     savedId: savedEntry?.id ?? null,
                     productId: id,
                   });
                 } else {
-                  // pass product snapshot so guest saves include price/img
-                  await save(id, props.details);
-                  if (typeof add === "function") add(props.details, 1);
+                  await save(id, d);
+                  if (typeof add === "function") add(d, 1);
                 }
               } catch (err) {
                 console.error("save toggle error", err);
@@ -282,7 +197,7 @@ export const Card = React.memo((props) => {
             <img
               src={savedActive ? "/images/heard-fill.svg" : "/images/heart.svg"}
               alt="heart"
-            />{" "}
+            />
           </button>
         </div>
       </div>
@@ -305,18 +220,18 @@ export const Card = React.memo((props) => {
             </span>
 
             <span style={{ color: "red", fontWeight: 700 }}>
-              {formatMoney(priceAfter, currency) || ""}
+              {formatMoney(displayPrice, currency) || ""}
             </span>
 
-            {discountPercentLabel && (
+            {discountLabel && (
               <span style={{ marginLeft: 8, color: "green" }}>
-                {discountPercentLabel}
+                {discountLabel}
               </span>
             )}
           </div>
         ) : (
           <div style={{ color: "#6b7280", fontWeight: 600 }}>
-            {formatMoney(origPrice, currency) || ""}
+            {formatMoney(displayPrice, currency) || ""}
           </div>
         )}
       </div>

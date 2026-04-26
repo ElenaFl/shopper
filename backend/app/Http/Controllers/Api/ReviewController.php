@@ -10,8 +10,17 @@ use App\Http\Resources\ProductResource;
 use App\Http\Resources\ReviewResource;
 
 /**
- * ReviewController  работает с отзывами о продукте: index (список), store (создать отзыв), destroy (удалить отзыв).
-* Использует Eloquent модели Product и Review и ресурсы ProductResource / ReviewResource.
+ * Class ReviewController
+ *
+ * API для отзывов о товарах.
+ *
+ * Поведение:
+ * - index: вернуть список отзывов для товара (с авторами).
+ * - store: создать отзыв (требует аутентификации), обновить агрегаты продукта (reviews_count, rating).
+ * - destroy: удалить отзыв (требует авторизации: автор или админ), пересчитать агрегаты и popularity.
+ *
+ * Ответы:
+ * - 200 OK, 201 Created, 400/401/403/422/500 при ошибках.
  */
 
 class ReviewController extends Controller

@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * ChatSession - модель сессии чата
+ * Class ChatSession
+ *
+ * Модель сессии чата
  */
 
 class ChatSession extends Model

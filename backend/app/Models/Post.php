@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Tag;
 
 /**
- * Модель Post
+ * Class Post
+ *
+ * Eloquent‑модель блога (пост).
  */
 
 class Post extends Model

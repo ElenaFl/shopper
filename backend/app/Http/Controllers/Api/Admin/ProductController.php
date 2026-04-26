@@ -13,10 +13,19 @@ use App\Http\Resources\ProductResource;
 use App\Models\Discount;
 
 /**
- * ProductController
+ * Class ProductController
  *
- * Админ-контроллер для управления товарами: список (с пагинацией), создание, просмотр, обновление и удаление продуктов.
- * Использует ресурсы (AdminProductResource / ProductResource) для формирования ответов, работает с изображениями и с сущностью Discount.
+ * Админский API для управления товарами (CRUD).
+ *
+ * Поведение:
+ * - index: список продуктов с пагинацией (per_page, page), с relation category и discounts.
+ * - store: создать продукт (требует admin), загрузка изображения, опциональное создание скидки.
+ * - show: показать продукт с reviews.user, category, discounts.
+ * - update: обновить продукт (требует admin), обновить/удалить изображение, обновить или удалить скидку.
+ * - destroy: удалить продукт (требует admin) и связанный файл изображения.
+ *
+ * Ответы:
+ * - 200 OK, 201 Created, 204 No Content, 401/403/422/500 при ошибках.
  */
 
 class ProductController extends Controller

@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Модель Review
+ * Class Review
+ *
+ * Eloquent‑модель отзыва на товар.
  */
 
 class Review extends Model

@@ -6,7 +6,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\CommentResource;
 
 /**
- * Ресурс в PostResource. Назначение - преобразовать модель Post в формат, удобный и безопасный для отдачи через JSON в API, контролирует поля с какими ключами  будут отдаваться
+ * Class PostResource
+ *
+ *  Назначение - преобразовать модель Post в формат, удобный и безопасный для отдачи через JSON в API, контролирует поля с какими ключами  будут отдаваться
  */
 
 class PostResource extends JsonResource

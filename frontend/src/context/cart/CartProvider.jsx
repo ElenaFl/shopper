@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { CartContext } from "./CartContext.jsx";
 import { Alert } from "../../components/ui/Alert/Alert.jsx";
+import { useAuth } from "../auth/useAuth";
 
 const LOCAL_STORAGE_KEY = "shopper_cart";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
@@ -35,6 +36,23 @@ export const CartProvider = ({ children }) => {
     return Number.isNaN(n) ? null : n;
   };
 
+  const { user } = useAuth() ?? { user: null };
+
+  (function () {
+    try {
+      const origSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (k === LOCAL_STORAGE_KEY) {
+          console.warn("[localStorage.debug] setItem shopper_cart", {
+            valueSample: String(v).slice(0, 200),
+            stack: new Error().stack.split("\n").slice(2, 6).join("\n"),
+          });
+        }
+        return origSet.apply(this, arguments);
+      };
+    } catch (e) {}
+  })();
+
   function isAuthenticated() {
     if (typeof document === "undefined" || !document.cookie) return false;
     return (
@@ -44,30 +62,55 @@ export const CartProvider = ({ children }) => {
     );
   }
 
+  const safeWriteLocalCart = (obj) => {
+    try {
+      const isAuth = Boolean(user && user.id) || isAuthenticated();
+      if (isAuth) {
+        console.log(
+          "safeWriteLocalCart: user is authenticated — skip writing localStorage",
+        );
+        return false;
+      }
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(obj));
+      return true;
+    } catch (e) {
+      console.error("safeWriteLocalCart failed", e);
+      return false;
+    }
+  };
+
   useEffect(() => {
     try {
-      // strip snapshot to avoid saving heavy objects const safe = (cart || []).map(({ snapshot, ...keep }) => keep);
+      const isAuth = Boolean(user && user.id) || isAuthenticated();
+      console.log("CartProvider: localStorage effect", {
+        cartLength: Array.isArray(cart) ? cart.length : null,
+        isAuth,
+      });
 
-      if (!isAuthenticated()) {
-        // Guest: persist cart so it survives reloads
-        try {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
-        } catch (e) {
-          console.error("CartProvider: save localStorage failed", e);
-        }
-      } else {
-        // Authenticated: don't persist optimistic or server-backed cart to localStorage.
-        // Also remove any leftover guest cart to avoid re-sending it on reload.
+      if (isAuth) {
         try {
           localStorage.removeItem(LOCAL_STORAGE_KEY);
+          console.log(
+            "CartProvider: removed guest cart from localStorage because authenticated",
+          );
         } catch (e) {
-          // ignore
+          console.error("CartProvider: failed removing localStorage", e);
+        }
+      } else {
+        try {
+          const safe = Array.isArray(cart) ? cleanStaleLocalItems(cart) : [];
+          safeWriteLocalCart(safe);
+          console.log("CartProvider: wrote guest cart to localStorage", {
+            len: safe.length,
+          });
+        } catch (e) {
+          console.error("CartProvider: failed writing localStorage", e);
         }
       }
     } catch (e) {
-      console.error("CartProvider: save localStorage failed (outer)", e);
+      console.error("CartProvider: localStorage effect outer error", e);
     }
-  }, [cart]);
+  }, [cart, user?.id]);
 
   const normalizeSnapshot = (snapshot) => {
     if (snapshot === null || snapshot === undefined) return [];
@@ -124,6 +167,14 @@ export const CartProvider = ({ children }) => {
   };
 
   const postServerCartItem = async (payload) => {
+    const pending = sessionStorage.getItem("shopper_merge_pending");
+    if (pending) {
+      console.log(
+        "postServerCartItem: merge pending, skipping server persist",
+        pending,
+      );
+      return null;
+    }
     const res = await fetch(`${API_BASE}/api/user/cart`, {
       method: "POST",
       credentials: "include",
@@ -180,7 +231,6 @@ export const CartProvider = ({ children }) => {
       return;
     }
 
-    // optimistic update: increment locally by requested quantity
     setCart((prev) => {
       const existing = prev.find((i) => toNum(i.id) === itemId);
       if (existing) {
@@ -194,8 +244,12 @@ export const CartProvider = ({ children }) => {
     });
 
     try {
+      const pending = sessionStorage.getItem("shopper_merge_pending");
+      if (pending) {
+        console.log("addToCart: merge pending, skipping server add", pending);
+        return;
+      }
       const payload = buildItemPayload({ ...item, id: itemId });
-      console.log("addToCart payload:", payload);
       const serverResult = await postServerCartItem(payload);
       if (serverResult) {
         setCart((prev) => {
@@ -205,7 +259,6 @@ export const CartProvider = ({ children }) => {
           const foundIdx = prev.findIndex((p) => Number(p.id) === prodId);
           const existing = foundIdx >= 0 ? prev[foundIdx] : null;
 
-          // incomingQty is what we requested/what server says was added
           const incomingQty = Number(
             serverResult.added_quantity ??
               serverResult.quantity ??
@@ -213,8 +266,6 @@ export const CartProvider = ({ children }) => {
               1,
           );
 
-          // If server returned a definitive total quantity for this product, prefer it.
-          // Otherwise, fall back to existing + incomingQty, compensating optimistic pre-increment.
           const resolvedQuantity =
             serverResult.quantity !== undefined &&
             serverResult.quantity !== null
@@ -418,10 +469,8 @@ export const CartProvider = ({ children }) => {
         cart.length > 0
       ) {
         const cleaned = cleanStaleLocalItems(cart);
-        // defer to avoid sync setState in effect (ESLint react-hooks/set-state-in-effect)
         Promise.resolve().then(() => setCart(cleaned));
       } else {
-        // defer to avoid sync setState in effect
         Promise.resolve().then(() => setCart(mapped));
       }
     };
@@ -435,12 +484,10 @@ export const CartProvider = ({ children }) => {
       if (local.length > 0) {
         const cleaned = cleanStaleLocalItems(local);
         if (cleaned.length !== local.length) {
-          // defer to avoid sync setState in effect (ESLint react-hooks/set-state-in-effect)
           Promise.resolve().then(() => setCart(cleaned));
         }
       }
     } catch (e) {}
-    // empty deps: run once on mount
   }, []);
 
   return (

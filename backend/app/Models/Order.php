@@ -9,7 +9,9 @@ use App\Models\OrderItem;
 
 /**
  *
- * Модель Order
+ * Class Order
+ *
+ * Eloquent‑модель комментария к посту.
  */
 
 class Order extends Model

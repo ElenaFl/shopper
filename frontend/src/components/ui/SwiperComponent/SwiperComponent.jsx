@@ -9,8 +9,25 @@ import "./SwiperComponent.module.css";
 import { swiperList } from "../../../../swiperList.js";
 
 /**
- * Компонент Swiper на странице Home.
+ *  SwiperComponent — слайдер (карусель) на странице Home.
  *
+ * Описание:
+ * - Использует библиотеку Swiper (React wrapper).
+ * - Подключены модули Pagination и Autoplay.
+ * - Рендерит список слайдов из импорта swiperList.
+ *
+ * Поведение / параметры Swiper:
+ * - slidesPerView={1} — по одному слайду на экран.
+ * - loop={true} — бесконечная прокрутка.
+ * - autoplay={{ delay: 4000 }} — автопрокрутка каждые 4 секунды.
+ * - speed={1100} — длительность анимации смены слайда (в мс).
+ * - pagination={true} — точки пагинации; можно кастомизировать через объект.
+ * - touchRatio={1} — чувствительность тача/перетаскивания.
+ *
+ * Данные:
+ * - Ожидается, что swiperList — массив объектов вида:
+ *   { id, image, title, price, currency, ... }.
+ * - Компонент безопасно проверяет наличие swiperList?.length > 0.
  */
 
 export const SwiperComponent = () => {

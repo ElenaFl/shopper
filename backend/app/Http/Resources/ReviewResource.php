@@ -6,7 +6,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 
 /**
- * ReviewResource - преобразует модельную коллекцию в массив, пригодный для JSON‑ответа API, контролирует, какие поля и в каком виде уйдут клиенту
+ * Class ReviewResource
+ *
+ * Трансформер для отзыва.
+ *
+ * Возвращает: id, product_id, user_id, rating, comment, name/email автора (из snapshot или relation user),
+ * и timestamps.
+ *
+ * Преобразует модельную коллекцию в массив, пригодный для JSON‑ответа API, контролирует, какие поля и в каком виде уйдут клиенту
  */
 
 class ReviewResource extends JsonResource

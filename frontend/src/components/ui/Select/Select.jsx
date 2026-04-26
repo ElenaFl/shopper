@@ -2,16 +2,30 @@ import React from "react";
 import { categories } from "../../../../categories.js";
 
 /**
- * Универсальный компонент выпадающий список.
+ * Select — универсальный компонент выпадающего списка.
+ *
  * Props:
- * - options: [{ value, label }, ...]
- * - value: текущий выбранный value
- * - onChange: функция (value) => void
- * - onSelectChange: устаревший алиас для onChange
- * - className: класс для <select>
- * - wrapperClassName: класс для обёртки
- * - ...rest: прочие пропсы (style, disabled и т.д.) будут прокинуты в <select>
+ * @param {Array<{value: any, label: string}>} [options] - Массив опций. Каждая опция: { value, label }.
+ *   Если options не передан, компонент попробует взять данные из импортированного `categories`.
+ * @param {any} [value] - Текущее выбранное значение (контролируемый компонент).
+ * @param {(value:any) => void} [onChange] - Коллбек при изменении значения. Вызывается с новым value.
+ * @param {string} [placeholder] - Опциональная placeholder-опция (отображается как <option value="">...).
+ * @param {string} [className=""] - Дополнительные классы для тега <select>.
+ * @param {string} [wrapperClassName=""] - Классы для обёртки селекта (контейнера).
+ * @param {string} [arrowClassName=""] - Классы для контейнера стрелки (иконки).
+ * @param {...any} rest - Прочие props (disabled, style, name и т.д.) будут прокинуты в <select>.
+ *
+ * Поведение:
+ * - Если переданы options, используется их набор.
+ * - Иначе, если доступен импортированный categories — трансформирует его в опции.
+ * - Иначе выводит одну опцию с текстом "No options".
+ * - При выборе опции вызывается onChange(value) или (если он не передан) onSelectChange(value).
+ *
+ * Accessibility (A11y):
+ * - Иконка стрелки помечена aria-hidden="true".
+ * - Если placeholder используется, его value = "" — убедитесь, что value контролируемо.
  */
+
 export const Select = ({
   options,
   value,

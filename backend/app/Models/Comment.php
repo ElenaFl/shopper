@@ -8,7 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Модель Comment - логика доступа к комментариям и ответам на них
+ * Class Comment
+ *
+ *
+ * Eloquent‑модель комментария к посту.
+ * Содержит логику доступа к комментариям и ответам на них
  */
 
 class Comment extends Model

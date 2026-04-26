@@ -5,7 +5,11 @@ namespace App\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Публичная сериализация категории (возвращает результат контроллера в JSON-формате).
+ * Class CategoryResource
+ *
+ * Публичный трансформер для категории.
+ *
+ * Возвращает минимальный набор полей для публичного API: id, title, slug.
  */
 
 class CategoryResource extends JsonResource

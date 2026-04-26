@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Counter } from "../components/ui/Counter/Counter.jsx";
 import { Tabs } from "../components/ui/Tabs/Tabs.jsx";
-import { useSavedItems } from "../hooks/useSavedItems.js";
+import { useSaved } from "../context/save/useSaved.js";
 
 /*
   Lazy-load Swiper:
@@ -85,7 +85,7 @@ export const ProductDetails = () => {
   // transient id of review that was just created — used to show sparkle once
   const [recentlyCreatedReviewId, setRecentlyCreatedReviewId] = useState(null);
 
-  const { items: savedItems = [], save, remove } = useSavedItems();
+  const { items: savedItems = [], save, remove } = useSaved();
 
   const isSaved = React.useMemo(() => {
     if (!productId) return false;

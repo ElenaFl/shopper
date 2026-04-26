@@ -2,97 +2,125 @@ import React, { useEffect, useContext, useState, useRef, useMemo } from "react";
 import { useSaved } from "../../../context/save/useSaved.js";
 import { CartContext } from "../../../context/cart/CartContext.jsx";
 import { Drawer } from "../Drawer/Drawer.jsx";
-import { useAuth } from "../../../context/auth/useAuth";
+import { Counter } from "../Counter/Counter";
 
 /**
- SavedDrawer: minimal & flexible pricing strategy
- - Always prefer server-provided final price when available (product.final_price or product.discount.price_after)
- - Cache per-product fetch results for short TTL (default 5 minutes)
- - Fallback to computePriceFromSnapshot using saved snapshot when server data unavailable
-*/
+ * SavedDrawer — панель «Сохранённые» товары.
+ *
+ * @param {Object} props - компонент использует контексты;
+ * @param {Array<SavedItemSnapshot>} [props.items] - список сохранённых элементов (для тестов)
+ * @param {(itemId:number)=>void} [props.addToCart] - функция добавления в корзину (используется CartContext) *
+ *
+ * Назначение:
+ * - Отображает список сохранённых товаров (из useSaved) в выдвигаемой панели (Drawer).
+ * - Позволяет управлять количеством, удалять элементы, переносить все сохранённые в корзину.
+ * - При отображении использует кэширование запросов к серверу для получения актуальных данных о товаре и ценах.
+ *
+ * Основные принципы ценовой политики:
+ * - Всегда предпочитать серверно-авторитетное значение цены (product.final_price или product.discount.price_after).
+ * - Если серверные данные недоступны — использовать snapshot/entry-данные из сохранённого элемента (entry.price_after / entry.price).
+ * - В качестве финального fallback вычислять цену из snapshot через computePriceFromSnapshot.
+ * - Кешировать полученные данные по productId с коротким TTL (по умолчанию 5 минут).
+ *
+ * Props / контексты:
+ * - Компонент не принимает пропсы напрямую, но использует:
+ *   - useSaved() — список saved элементов и методы (items, open, setOpen, remove, increase, decrease, total, clear, loading, load).
+ *   - CartContext — для добавления в корзину (addToCart).
+ *   - useAuth() — данные пользователя (user) при необходимости.
+ *
+ * Поведение:
+ * - При открытии панели (open === true) выполняется фоновая подгрузка недостающих product-данных (non-blocking).
+ * - При клике Add to cart — перебираются все saved items, для каждого определяется эффективная цена (getEffectivePrice)
+ *   и формируется объект cartItem, который добавляется в корзину через addToCart. Затем saved очищаются (clear()).
+ * - Есть локальный productCache для уменьшения количества запросов к API.
+ *
+ * Безопасность и отказоустойчивость:
+ * - Все сетевые вызовы защищены try/catch и возвращают null при ошибках.
+ * - Кэш читается через ref (cacheRef) чтобы избежать проблем c замыканиями внутри async функций.
+ *
+ */
 
-// TTL for cached product data (5 minutes)
+/* (Time To Live, буквально «время жизни») для кеша product данных (5 минут)
+  задаёт длительность (обычно в секундах или миллисекундах), в течение которой закэшированные данные считаются валидными; чтобы не держать устаревшую информацию в кеше слишком долго и периодически запрашивать актуальные данные с сервера
+ */
 const CACHE_TTL = 5 * 60 * 1000;
 
-function computePriceFromSnapshot(productOrSnapshot = {}) {
-  try {
-    const rawPrice =
-      productOrSnapshot?.price ?? productOrSnapshot?.price_amount ?? null;
-    const orig = rawPrice != null ? Number(rawPrice) : null;
+/**
+ * computePriceFromSnapshot — вычисляет цену по snapshot/product-данным.
+ * - берёт orig из price / price_amount.
+ * - поддерживает discount.type === 'percent' и 'fixed'.
+ * - Возвращает Number (0 в случае ошибки/отсутствия данных). *
+ * @returns {number} вычисленная цена (float)
+ */
 
-    const serverFinalRaw =
-      productOrSnapshot?.final_price ??
-      productOrSnapshot?.price_after ??
-      productOrSnapshot?.priceAfter ??
-      null;
-    const serverFinal =
-      serverFinalRaw != null && !Number.isNaN(Number(serverFinalRaw))
-        ? Number(serverFinalRaw)
-        : null;
+function computePriceFromSnapshot(s = {}) {
+  const toNumber = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
 
-    const discountRaw =
-      productOrSnapshot?.discount ?? productOrSnapshot?.discounts ?? null;
-    let discount = null;
-    if (Array.isArray(discountRaw) && discountRaw.length)
-      discount = discountRaw[0];
-    else discount = discountRaw;
+  // original price
+  const orig = toNumber(s.price ?? s.price_amount ?? null);
 
-    if (serverFinal != null && Number.isFinite(serverFinal)) return serverFinal;
+  // discount — либо объект или массив (сервер обычно отдаёт объект discountPayload)
+  const discount = Array.isArray(s.discount)
+    ? s.discount[0]
+    : (s.discount ?? null);
 
-    if (
-      productOrSnapshot != null &&
-      productOrSnapshot.price_after != null &&
-      Number.isFinite(Number(productOrSnapshot.price_after))
-    ) {
-      return Number(productOrSnapshot.price_after);
-    }
+  if (discount) {
+    // если сервер уже прислал готовую цену после скидки — используем её
+    const serverPriceAfter = toNumber(discount.price_after ?? null);
+    if (serverPriceAfter != null) return serverPriceAfter;
 
-    if (discount && typeof discount === "object") {
-      const dType = discount.type ?? null;
-      const dValue = discount.value ?? discount.amount ?? null;
-      if (dType === "percent" && dValue != null && orig != null) {
-        const pct = Number(dValue) / 100;
-        return Math.max(0, Number((orig * (1 - pct)).toFixed(2)));
+    // иначе: если есть тип/значение и у нас есть orig — применим простую логику
+    const type = discount.type ?? null;
+    const val = toNumber(
+      discount.value ?? discount.amount ?? discount.percent ?? null,
+    );
+    if (type && val != null && orig != null) {
+      if (type === "percent") {
+        return Math.max(0, Number((orig * (1 - val / 100)).toFixed(2)));
       }
-      if (dType === "fixed" && dValue != null && orig != null) {
-        return Math.max(0, Number((orig - Number(dValue)).toFixed(2)));
+      if (type === "fixed") {
+        return Math.max(0, Number((orig - val).toFixed(2)));
       }
     }
-
-    if (orig != null && Number.isFinite(orig)) return Number(orig);
-
-    return 0;
-  } catch (err) {
-    console.warn("computePriceFromSnapshot error", err);
-    return 0;
   }
+  // orig or 0
+  return orig != null ? orig : 0;
 }
 
 export const SavedDrawer = () => {
-  const {
-    items,
-    open,
-    setOpen,
-    remove,
-    increase,
-    decrease,
-    total,
-    clear,
-    loading,
-    load,
-  } = useSaved();
+  // деструктуризация возвращаемого значения из кастомного хука useSaved().
+  // возвращает объект (или массив с объектом), в котором есть методы и состояния, связанные со списком сохранённых элементов;
+  const { items, open, setOpen, remove, increase, decrease, clear, loading } =
+    useSaved();
 
-  // productCache: { [productId]: { data: productObj, ts: number } }
-  const [productCache, setProductCache] = useState({});
+  // создаёт локальный state-объект productCache и одновременно держит его актуальную копию в ref (cacheRef).
+  //  Цель — иметь и реактивный state (чтобы React рендерил компонент при изменениях), и стабильный доступ к актуальным данным внутри асинхронных функций без проблем с замыканиями
+  const [productCache, setProductCache] = useState({}); // объект кеша
+
+  // создаётся ref, который изначально содержит текущее значение productCache.
+  // ref останется одной и той же ссылкой между рендерами, поэтому его можно безопасно читать внутри async-функций/эффектов без риска использования «устаревшего» замкнутого значения.
   const cacheRef = useRef(productCache);
+
+  // синхронизирует ref с state при каждом изменении productCache.
+  // благодаря этому внутри любых асинхронных обработчиков можно читать cacheRef.current и получить самое свежее состояние кеша, даже если функция была создана в более раннем рендере (избегаете проблемы stale closure).
   useEffect(() => {
     cacheRef.current = productCache;
   }, [productCache]);
 
+  // подсчёт числа сохранённых элементов.
+  // если items не массив (например, undefined), возвращаем 0, чтобы избежать ошибок в рендере.
   const localCount = Array.isArray(items) ? items.length : 0;
-  const { user } = useAuth();
+  // берём функцию addToCart из контекста корзины.
+  // она используется в localMoveToCart для добавления сформированных элементов в корзину.
   const { addToCart } = useContext(CartContext);
 
+  // эффект подписывается на глобальное DOM-событие "saved:moveToCartPending".
+  // цель: при запуске этого события открыть drawer (setOpen(true)) из любого места приложения.
+  // используем именованную функцию onPending, чтобы корректно отписаться в cleanup.
+  // зависимость [setOpen] гарантирует, что при изменении функции setOpen подписка обновится.
   useEffect(() => {
     const onPending = () => setOpen(true);
     window.addEventListener("saved:moveToCartPending", onPending);
@@ -100,6 +128,9 @@ export const SavedDrawer = () => {
       window.removeEventListener("saved:moveToCartPending", onPending);
   }, [setOpen]);
 
+  // чтение из кеша через cacheRef (а не напрямую из state) позволяет получить актуальное значение внутри асинхронных функций.
+  // проверяем TTL: если запись свежая — возвращаем cached.data (быстрый путь, без сетевого запроса).
+  // в catch игнорируем любые ошибки чтения кеша — безопасный fallback к сетевому запросу.
   const fetchProduct = async (pid) => {
     if (!pid) return null;
     try {
@@ -110,40 +141,37 @@ export const SavedDrawer = () => {
     } catch (e) {
       // ignore cache read errors
     }
-
+    // формируем URL API из переменных окружения (Vite). Если переменная не задана — используем локальный fallback.
     try {
       const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
       const res = await fetch(`${API_BASE}/api/products/${pid}`, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
+        credentials: "include", // отправляем cookie/сессию, если требуется аутентификация
+        headers: { Accept: "application/json" }, // ожидаем JSON
       });
-      if (!res.ok) return null;
-      const json = await res.json().catch(() => null);
-      const product = (json && (json.data ?? json)) || null;
+      if (!res.ok) return null; // если ответ с ошибкой — возвращаем null (не ломаем поток)
+      const json = await res.json().catch(() => null); // безопасный parse JSON (возвращает null при ошибке парсинга)
+      const product = (json && (json.data ?? json)) || null; // нормализуем формат: api может отдавать { data: ... } или сам объект
+      // сохраняем в локальный кеш с таймстампом
       if (product) {
         setProductCache((prev) => ({
           ...(prev || {}),
           [pid]: { data: product, ts: Date.now() },
         }));
       }
-      return product;
-    } catch (err) {
-      return null;
+      return product; // возвращаем объект продукта или null
+    } catch {
+      return null; // при сетевой/прочей ошибке возвращаем null
     }
   };
 
-  // compute effective price preferring server final_price, then snapshot fields, then computed fallback
   const getEffectivePrice = (entry, productData) => {
-    // productData may be fresh fetched product or cached
     const prod = productData ?? entry?.product ?? {};
-    // prefer authoritative server field if present
     if (
       prod?.final_price != null &&
       Number.isFinite(Number(prod.final_price))
     ) {
       return Number(prod.final_price);
     }
-    // product.discount?.price_after if present on server product
     const serverDiscountPrice =
       prod?.discount?.price_after ?? prod?.discounts?.[0]?.price_after ?? null;
     if (
@@ -152,14 +180,12 @@ export const SavedDrawer = () => {
     ) {
       return Number(serverDiscountPrice);
     }
-    // entry-level explicit price_after (snapshot)
     if (
       entry?.price_after != null &&
       Number.isFinite(Number(entry.price_after))
     ) {
       return Number(entry.price_after);
     }
-    // fallback compute from combined snapshot/product
     return computePriceFromSnapshot({
       ...prod,
       ...entry,
@@ -169,26 +195,18 @@ export const SavedDrawer = () => {
 
   const localMoveToCart = async () => {
     if (!items || items.length === 0) return;
-
     for (const it of items) {
       const pid = Number(it.product?.id ?? it.product_id);
       if (!pid) {
         console.warn("SavedDrawer: missing product id on saved item", it);
         continue;
       }
-
-      // Use the exact same source as row rendering: prefer cached product data,
-      // otherwise fall back to snapshot in saved item. Do NOT fetch new server data.
       const cached = cacheRef.current?.[pid]?.data ?? it.product ?? null;
       const unit = getEffectivePrice(it, cached);
-
-      // Debugging helper (optional) — uncomment if you want to see values in console:
-      // console.debug("SavedDrawer moveToCart", { pid, unit, qty: it.qty ?? 1, snapshotPrice_after: it.price_after, snapshotPrice: it.price, cached });
-
       const cartItem = {
         id: pid,
         title: cached?.title ?? it.product?.title ?? it.title ?? "",
-        price: Number(unit), // unit price as shown in UI
+        price: Number(unit),
         img:
           cached?.img ??
           cached?.img_url ??
@@ -198,14 +216,12 @@ export const SavedDrawer = () => {
         quantity: it.qty ?? 1,
         sku: cached?.sku ?? it?.product?.sku ?? it?.product?.SKU ?? null,
       };
-
       try {
         addToCart(cartItem);
       } catch (e) {
         console.error("SavedDrawer: addToCart failed", e);
       }
     }
-
     try {
       await clear();
     } catch (e) {
@@ -214,7 +230,6 @@ export const SavedDrawer = () => {
     setOpen(false);
   };
 
-  // ensure productCache gets updated for missing items when drawer opens (non-blocking)
   useEffect(() => {
     let cancelled = false;
     const loadMissing = async () => {
@@ -234,34 +249,36 @@ export const SavedDrawer = () => {
         const p = await fetchProduct(pid);
         if (p) results[pid] = { data: p, ts: Date.now() };
       }
-      if (!cancelled && Object.keys(results).length) {
+      if (!cancelled && Object.keys(results).length)
         setProductCache((prev) => ({ ...(prev || {}), ...results }));
-      }
     };
     loadMissing();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, items]);
 
-  // compute rows and total in one pass using useMemo for stability
   const { rows, computedTotal } = useMemo(() => {
+    console.log("SavedDrawer memo items:", items);
+    console.log("productCache:", productCache);
+
     let accTotal = 0;
     const accRows = [];
 
-    if (!Array.isArray(items) || !items.length) {
+    if (!Array.isArray(items) || !items.length)
       return { rows: [], computedTotal: 0 };
-    }
 
     for (const it of items) {
       const pid = Number(it.product?.id ?? it.product_id);
       const cached = productCache[pid]?.data ?? it.product ?? null;
-      const unit = getEffectivePrice(it, cached);
-      const lineTotal = Number(unit) * Number(it.qty ?? 1);
-      accTotal += Number.isFinite(lineTotal) ? lineTotal : 0;
 
-      // normalize image URL so it's always absolute
+      const unitRaw = getEffectivePrice(it, cached);
+      const unitNum = Number.isFinite(Number(unitRaw)) ? Number(unitRaw) : null;
+      const qty = Number.isFinite(Number(it.qty)) ? Number(it.qty) : 1;
+      const lineTotal = unitNum != null ? unitNum * qty : 0;
+
+      accTotal += lineTotal;
+
       const imgRaw =
         cached?.img ??
         cached?.img_url ??
@@ -290,52 +307,43 @@ export const SavedDrawer = () => {
           <div className="flex-1">
             <div className="font-medium">{titleText}</div>
             <div className="text-sm text-gray-600">
-              {Number(unit).toFixed(2)} each
+              {unitNum != null ? Number(unitNum).toFixed(2) : "0.00"} each
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() =>
-                typeof decrease === "function"
-                  ? decrease(it.id ?? it.product_id, 1)
-                  : null
-              }
-              className="px-2"
-            >
-              −
-            </button>
-            <div className="px-2">{it.qty ?? 1}</div>
-            <button
-              onClick={() =>
-                typeof increase === "function"
-                  ? increase(it.id ?? it.product_id, 1)
-                  : null
-              }
-              className="px-2"
-            >
-              +
-            </button>
+            <div className="w-28">
+              <Counter
+                count={it.qty ?? 1}
+                min={1}
+                onChange={(next) => {
+                  const current = Number(it.qty ?? 1);
+                  const delta = Number(next) - current;
+                  if (delta > 0) increase(it.id ?? it.product_id, delta);
+                  else if (delta < 0) decrease(it.id ?? it.product_id, -delta);
+                }}
+                className="w-full"
+              />
+            </div>
+
             <div className="px-3 font-semibold">
               {Number(lineTotal).toFixed(2)}
             </div>
+
             <button
               className="text-gray-500 px-2"
               onClick={async () => {
                 try {
                   const isServerId = Number.isFinite(Number(it.id));
-                  if (isServerId) {
-                    await remove({ savedId: it.id });
-                  } else {
-                    const pid = it.product?.id ?? it.product_id ?? null;
-                    if (pid == null) {
+                  if (isServerId) await remove({ savedId: it.id });
+                  else {
+                    const pid2 = it.product?.id ?? it.product_id ?? null;
+                    if (pid2 == null)
                       console.warn(
                         "SavedDrawer: cannot remove item, no id/productId",
                         it,
                       );
-                    } else {
-                      await remove({ productId: pid });
-                    }
+                    else await remove({ productId: pid2 });
                   }
                 } catch (err) {
                   console.error("remove failed", err);
@@ -350,7 +358,6 @@ export const SavedDrawer = () => {
     }
 
     return { rows: accRows, computedTotal: accTotal };
-    // productCache is included because it affects unit price display
   }, [items, productCache, increase, decrease, remove]);
 
   return (
@@ -376,7 +383,9 @@ export const SavedDrawer = () => {
           <div className="flex justify-between mb-3">
             <div>{localCount} products</div>
             <div className="font-semibold">
-              {Number(computedTotal || 0).toFixed(2)}
+              {Number.isFinite(computedTotal)
+                ? computedTotal.toFixed(2)
+                : "0.00"}
             </div>
           </div>
           <button

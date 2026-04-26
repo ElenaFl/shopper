@@ -5,6 +5,12 @@ namespace App\Policies;
 use App\Models\User;
 use App\Models\Category;
 
+/**
+ * Class Policy для модели Category
+ *
+ * Определяет права доступа для операций CRUD.
+ */
+
 class CategoryPolicy
 {
     /**

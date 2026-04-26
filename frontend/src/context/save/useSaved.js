@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { SavedContext } from "./SavedContext.jsx";
 
-// вспомогательный хук для удобства потребления
+// вспомогательный хук
 export const useSaved = () => {
   const ctx = useContext(SavedContext);
   if (!ctx) {

@@ -8,10 +8,11 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
-use Psr\Log\LoggerInterface;
 
 /**
- * Job инкрементирует счётчик просмотров для поста в таблице posts
+ * Class  IncrementPostViews
+ *
+ * Инкрементирует счётчик просмотров для поста в таблице posts
  */
 
 class IncrementPostViews implements ShouldQueue

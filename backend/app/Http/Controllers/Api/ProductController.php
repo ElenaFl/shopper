@@ -11,8 +11,18 @@ use Illuminate\Support\Facades\DB;
 
 
 /**
-* Список товаров с дополнительными фильтрами, сортировкой и разбивкой по страницам.
-* Параметры запроса: per_page (по умолчанию 24), страница, идентификатор категории_id, поиск, сортировка (новые|price_asc|price_desc|популярные)
+ * Class ProductController
+ *
+ * Публичный API для работы с товарами.
+ *
+ * Поддерживает:
+ * - Фильтрацию (category_id, search, price_min/price_max, on_sale),
+ * - Сортировку (newest, popular, price_asc, price_desc),
+ * - Пагинацию (per_page, default 24),
+ * - Подгрузку актуальных скидок (discounts) и связывание их с товарами.
+ *
+ * Ответы:
+ * - 200 OK (список/товар),  paginate meta если используется пагинация.
 */
 
 class ProductController extends Controller

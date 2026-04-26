@@ -8,13 +8,52 @@ const API_SEND = `${API_BASE}/api/chat/send`;
 const SANCTUM = `${API_BASE}/sanctum/csrf-cookie`;
 
 /**
-  Production-ready ChatWidget:
-  - session lifecycle via POST /api/chat/sessions
-  - send messages with { session_id, content } to POST /api/chat/send
-  - load widget-state and history from GET /api/chat/widget-state
-  - robust normalization & safe rendering of server responses
-  - visual diadem and styles
-*/
+ * ChatWidget — виджет онлайн‑чата.
+ *
+ * Props: (компонент не принимает внешних props; весь контроль идёт через серверное состояние)- централизованная логика и управление:
+Админ/бэкенд может включать/отключать виджет для всех пользователей сразу (feature flag). Сервер контролирует, когда виджет доступен и какие сообщения/историю показывать.
+ *
+ * State / переменные (отражают внутреннее состояние компонента для динамической отрисовки):
+ * @state {boolean} loading — индикатор загрузки конфигурации виджета.
+ * @state {boolean} enabled — флаг, включена ли фича на сервере.
+ * @state {boolean} hidden — минимизирован/скрыт ли виджет (минимизированная кнопка).
+ * @state {boolean} visible — видимость панели (анимации открытия).
+ * @state {object|null} session — текущая сессия чата (объект, возвращаемый от API).
+ * @state {Array<{role: string, content: any}>} messages — массив сообщений чата.
+ * @state {string} input — значение текстового поля ввода.
+ * @state {boolean} sending — индикатор отправки сообщения.
+ * @state {boolean} diademVisible — флаг показа декоративной диадемы (визуальный эффект).
+ *
+ * Вспомогательные refs:
+ * @ref mountedRef — флаг, что компонент смонтирован (безопасный setState).
+ * @ref scrollRef — ref на контейнер сообщений (прокрутка вниз).
+ * @ref diademTimerRef — таймер для отложенного показа диадемы.
+ *
+ * Сетевые эндпоинты:
+ * - GET /api/chat/widget-state — загрузка состояния виджета и истории.
+ * - POST /api/chat/sessions — создание новой сессии чата.
+ * - POST /api/chat/send — отправка сообщения { session_id, content }.
+ * - POST /api/chat/widget-state — сохранение hidden (show/hide).
+ * - /sanctum/csrf-cookie — получение XSRF токена (для защищённых операций).
+ *
+ * Поведение и эффекты:
+ * - При монтировании: вызов initWidget() для загрузки состояния с сервера.
+ * - При изменении messages и visible: автоматически скроллит область сообщений вниз.
+ * - Нормализация входящих сообщений через normalizeServerMessage для безопасного рендера.
+ * - Создание сессии при первой отправке (createSession) и добавление пользовательского сообщения.
+ * - Обработка ошибок сети: показывает в чате сообщения об ошибках и логирует в консоль.
+ * - Управление видимостью и сохранением состояния hidden на сервере (handleOpen / handleClose).
+ *
+ * UI:
+ * - Минимизированная кнопка для открытия (появляется, когда hidden === true).
+ * - Панель с заголовком (avatar, title, status), списком сообщений и блоком ввода.
+ * - Визуальная «диадема» (decorative tiara) над панелью, показывается с задержкой.
+ *
+ * Безопасность:
+ * - Использует fetch с credentials: 'include' для cookie‑базной аутентификации.
+ * - Для защищённых POST запросов извлекается XSRF‑токен из /sanctum/csrf-cookie.
+ * 
+ */
 
 export const ChatWidget = () => {
   const [loading, setLoading] = useState(true);
@@ -33,6 +72,7 @@ export const ChatWidget = () => {
   const scrollRef = useRef(null);
   const diademTimerRef = useRef(null);
 
+  // инициализация виджета при монтировании компонента
   useEffect(() => {
     mountedRef.current = true;
     initWidget();
@@ -43,12 +83,14 @@ export const ChatWidget = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // скроллит область сообщений вниз при обновлении сообщений или при показе панели
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, visible]);
 
+  // получает CSRF-токен через вызов sanctum/csrf-cookie
   async function fetchSanctumCsrf() {
     try {
       await fetch(SANCTUM, { credentials: "include" });
@@ -59,6 +101,13 @@ export const ChatWidget = () => {
     }
   }
 
+  /**
+   * initWidget — загрузка состояния виджета с сервера:
+   * - GET /api/chat/widget-state
+   * - выставляет enabled/hidden/loading
+   * - восстанавливает историю/сообщения, если они есть
+   * - при enabled && !hidden инициирует показ панели и диадемы
+   */
   async function initWidget() {
     try {
       const res = await fetch(API_GET, {
@@ -78,13 +127,13 @@ export const ChatWidget = () => {
       setHidden(Boolean(data.hidden));
       setLoading(false);
 
-      // restore history if present
+      // восстановление истории/сообщений, если есть
       if (Array.isArray(data.messages) && data.messages.length > 0) {
         setMessages(data.messages.map(normalizeServerMessage));
       } else if (Array.isArray(data.history) && data.history.length > 0) {
         setMessages(data.history.map(normalizeServerMessage));
       }
-
+      // если включено и не скрыто на сервере — показать виджет и диадему с анимацией
       if (data.enabled && !data.hidden) {
         setTimeout(() => {
           if (!mountedRef.current) return;
@@ -101,7 +150,11 @@ export const ChatWidget = () => {
     }
   }
 
-  // normalize server message -> { role, content } with content string
+  /**
+   * normalizeServerMessage — привести серверное сообщение к виду:
+   * { role: "assistant"|"user", content: string }
+   * Поддерживает строки, объекты, массивы и вложенные структуры.
+   */
   function normalizeServerMessage(msg) {
     if (typeof msg === "string") return { role: "assistant", content: msg };
     if (!msg || typeof msg !== "object")
@@ -125,6 +178,12 @@ export const ChatWidget = () => {
     return { role, content };
   }
 
+  /**
+   * renderContent — безопасный рендер содержимого сообщения:
+   * - строка -> текст
+   * - массив -> <div> или <pre> для объектов
+   * - объект -> <pre> JSON
+   */
   function renderContent(content) {
     if (content == null) return "";
     if (typeof content === "string") return content;
@@ -140,7 +199,10 @@ export const ChatWidget = () => {
     return <pre>{JSON.stringify(content)}</pre>;
   }
 
-  // create session on server (stores in state)
+  /**
+   * createSession — создать сессию на сервере (POST /api/chat/sessions)
+   * Сохраняет объект сессии в state и возвращает его.
+   */
   async function createSession() {
     try {
       const xsrf = await fetchSanctumCsrf();
@@ -166,6 +228,14 @@ export const ChatWidget = () => {
     }
   }
 
+  /**
+   * handleSend — отправка сообщения:
+   * - оптимистично добавляет сообщение пользователя в список
+   * - создаёт сессию при необходимости
+   * - POST /api/chat/send { session_id, content }
+   * - нормализует и добавляет ответы сервера в messages
+   * - обрабатывает ошибки и показывает сообщение об ошибке в чате
+   */
   async function handleSend() {
     if (!input.trim() || sending) return;
     const text = input.trim();
@@ -248,6 +318,11 @@ export const ChatWidget = () => {
     }
   }
 
+  /**
+   * handleClose — скрыть панель и сообщить серверу (hidden: true)
+   * - убрать диадему и свернуть панель с анимацией
+   * - POST /api/chat/widget-state { hidden: true } (с XSRF-токеном)
+   */
   const handleClose = async () => {
     setDiademVisible(false);
     setVisible(false);
@@ -271,6 +346,11 @@ export const ChatWidget = () => {
     }
   };
 
+  /**
+   * handleOpen — открыть панель (hidden: false)
+   * - показать панель и запустить анимацию диадемы
+   * - POST /api/chat/widget-state { hidden: false } для сохранения состояния на сервере
+   */
   const handleOpen = async () => {
     setHidden(false);
     setTimeout(() => {
@@ -297,16 +377,19 @@ export const ChatWidget = () => {
     }
   };
 
+  // Если ещё загружаем конфигурацию — не отрисовываем компонент
   if (loading) return null;
+  // Если фича отключена на сервере — не отрисовываем
   if (!enabled) return null;
 
   return (
     <>
+      {/* кнопка открытия (показана, когда виджет минимизирован) */}
       {hidden && (
         <button
           onClick={handleOpen}
           aria-label="Open chat"
-          className="fixed right-6 bottom-6 z-50 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg"
+          className="fixed right-6 bottom-6 z-100 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg"
           style={{
             background: "#7D7D7D",
             color: "#fff",
@@ -331,12 +414,13 @@ export const ChatWidget = () => {
         </button>
       )}
 
+      {/* контейнер панели — фиксированное позиционирование справа внизу */}
       <div
         className="fixed"
         style={{
           right: 50,
           bottom: 24,
-          zIndex: 40,
+          zIndex: 100,
           width: 300,
           maxWidth: "calc(100% - 32px)",
         }}
@@ -346,7 +430,7 @@ export const ChatWidget = () => {
           style={{
             transformOrigin: "bottom right",
             backdropFilter: "blur(8px)",
-            background: "rgba(211,211,211,0)",
+            background: "rgba(211,211,211, .1)",
             border: `1px solid rgba(161,138,104,0.16)`,
             boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
             transition:
@@ -358,7 +442,7 @@ export const ChatWidget = () => {
             pointerEvents: visible ? "auto" : "none",
           }}
         >
-          {/* Diadem (tiara) */}
+          {/* Диадема (декоративный элемент над панелью)*/}
           <div
             style={{
               position: "relative",
@@ -400,7 +484,7 @@ export const ChatWidget = () => {
               }}
               className="tiara-sparkles"
             >
-              {/* Inline SVG sparkles */}
+              {/* Встроенный SVG сверкание */}
               <svg
                 width="120"
                 height="28"
@@ -461,7 +545,7 @@ export const ChatWidget = () => {
             </div>
           </div>
 
-          {/* Header */}
+          {/* заголовок */}
           <div className="pt-8 px-4 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
@@ -496,7 +580,7 @@ export const ChatWidget = () => {
             </button>
           </div>
 
-          {/* Messages */}
+          {/* сообщения */}
           <div
             ref={scrollRef}
             className="px-4 pb-3"
@@ -541,7 +625,7 @@ export const ChatWidget = () => {
             )}
           </div>
 
-          {/* Input */}
+          {/* окно для ввода текста */}
           <div
             className="px-3 py-3 border-t"
             style={{ borderColor: "rgba(0,0,0,0.06)" }}

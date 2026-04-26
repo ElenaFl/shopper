@@ -6,7 +6,10 @@ use App\Models\Review;
 use App\Models\Product;
 
 /**
- * Наблюдатель ReviewObserver поддерживает счётчик отзывов у товаров:
+ *
+ * Class ReviewObserver
+ *
+ * Наблюдатель  поддерживает счётчик отзывов у товаров:
  * - created: при создании отзыва инкрементирует reviews_count у соответствующего Product.
  *  deleted: при удалении отзыва декрементирует reviews_count (только если > 0).
  *  updated: если поменялся product_id, убавляет счётчик у старого товара (если был) и прибавляет у нового.

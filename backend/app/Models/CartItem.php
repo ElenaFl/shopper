@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 
 /**
- *CartItem — модель строки корзины. Хранит привязку к пользователю, товару, количество, цену и snapshot (метаданные товара)
+ * Class CartItem
+ *
+ * Модель строки корзины.
+ * Хранит привязку к пользователю, товару, количество, цену и snapshot (метаданные товара)
  */
 
 class CartItem extends Model

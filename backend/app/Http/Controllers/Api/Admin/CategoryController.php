@@ -8,7 +8,20 @@ use Illuminate\Http\Request;
 use App\Http\Resources\AdminCategoryResource;
 
 /**
- * CategoryController - отвечает за CRUD операции с категориями в административной части приложения (создание, просмотр списка, редактирование, удаление)
+ * Class CategoryController
+ *
+ * Админский API для управления категориями (CRUD).
+ *
+ * Поведение:
+ * - Все методы требуют аутентификации (auth:sanctum).
+ * - index: список категорий с подсчётом товаров (withCount('products')).
+ * - store: создание категории (policy create).
+ * - show: отображение категории с relation products.
+ * - update: обновление категории (policy update).
+ * - destroy: удаление категории (policy delete).
+ *
+ * Ответы:
+ * - 200 OK, 201 Created, 204 No Content, 401/403/422 при ошибках.
  */
 
 class CategoryController extends Controller

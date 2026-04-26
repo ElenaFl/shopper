@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Модель OrderItem — Eloquent‑модель для строки заказа
+ * МодельClass OrderItem
+ *
+ * Eloquent‑модель для строки заказа
  */
 
 class OrderItem extends Model

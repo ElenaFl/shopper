@@ -3,8 +3,29 @@
 import React, { forwardRef } from "react";
 
 /**
- * Контролируемый Search, поддерживает ref для фокуса,
- * вызывает onSubmit(value) для запуска поиска
+ * Search — контролируемый компонент поля поиска с поддержкой ref.
+ *
+ * Ключевые моменты:
+ * - forwardRef пробрасывает ref от родителя напрямую к input (позволяет фокусировать поле извне).
+ * - Компонент контролируемый: значение передаётся через prop `value`, изменения отдаются через `onChange`.
+ * - При нажатии Enter вызывается onSubmit(value) (value предварительно .trim()).
+ *
+ * Props:
+ * @param {string} [value=""] - Текущее значение поля (контролируемое).
+ * @param {(val:string)=>void} [onChange=()=>{}] - Коллбек при изменении текста.
+ * @param {(val:string)=>void} [onSubmit=()=>{}] - Вызывается при подтверждении (Enter).
+ * @param {string} [placeholder=""] - Плейсхолдер для input.
+ * @param {string} [wrapperClassName=""] - Доп. классы для обёртки (контейнера).
+ * @param {string} [inputClassName=""] - Доп. классы для input.
+ *
+ * Accessibility:
+ * - input имеет aria-label="Search". При необходимости можно заменить на aria-labelledby с явной меткой.
+ * - Иконка помечена pointer-events-none и декоративна (alt="search"), можно сделать alt="" и aria-hidden="true", если иконка чисто декоративна.
+ * - Рекомендуется добавить role="search" на контейнер при включении дополнительных элементов управления (поле + кнопка).
+ *
+ * Поведение:
+ * - Нажатие Enter: предотвращается дефолт и вызывается onSubmit(trimmedValue).
+ * - input принимает ref от родителя, поэтому родитель может делать: inputRef.current.focus().
  */
 
 //forwardRef принимает ref от родителя и пробрасывает его внутрь (в input).
