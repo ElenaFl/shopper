@@ -1,8 +1,8 @@
-SHOPPER
+# SHOPPER
 
 интернет‑магазин с backend на Laravel и frontend на React + Vite. Проект содержит адаптивный UI, сборку через Vite и базовую архитектуру frontend/backend для локальной разработки и деплоя.
 
-Технологии
+# Технологии
 
 Laravel
 React
@@ -11,31 +11,31 @@ Tailwind CSS
 Swiper
 ESLint, Stylelint(инструменты)
 
-Требования
+# Требования
 
 Node.js >= 16
 npm >= 8
 Laravel 12
 Рекомендуется: OSPanel / Apache
 
-Установка зависимостей:
+# Установка зависимостей:
 
 composer install
 composer dump-autoload (автозагрузка классов)
 npm install
 
-Использование
+# Использование
 
 Режим разработки
 
 Запуск dev-сервера: npm run dev
 Запуск сервера (бекэнд): npm artisan serve; OSPanel
 
-Сборка для production
+# Сборка для production
 
 Собрать проект: npm run build
 
-Структура проекта:
+# Структура проекта:
 
 C:\OSPanel\home\shopper.local
 ├── .git
@@ -47,5 +47,3 @@ C:\OSPanel\home\shopper.local
 ├── package-lock.json
 ├── package.json
 └── tmp_index.js
-
-directory: 5 file: 4
