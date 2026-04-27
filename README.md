@@ -35,7 +35,7 @@ npm install
 
 Собрать проект: npm run build
 
-## Структура проекта:
+## Структура проекта
 
 C:\OSPanel\home\shopper.local
 ├── .git
