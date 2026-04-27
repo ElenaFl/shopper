@@ -64,12 +64,6 @@ export const Header = () => {
   // - setOpen: функция для переключения статуса панели (обычно setOpen(prev => !prev)).
   const { items, open, setOpen } = useSaved();
 
-  // отладочный эффект: логирует items при каждом изменении.
-  // полезно во время разработки, помогает увидеть, обновляются ли saved items.
-  React.useEffect(() => {
-    console.log("Header sees items:", items);
-  }, [items]);
-
   // безопасный подсчёт: если items не массив — возвращаем 0.
   // используется для бейджа рядом с иконкой "saved".
   const savedCount = Array.isArray(items) ? items.length : 0;
