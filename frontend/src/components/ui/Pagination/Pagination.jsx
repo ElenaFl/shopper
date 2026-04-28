@@ -126,7 +126,7 @@ export const Pagination = ({ meta, onChange }) => {
             key={p}
             // onClick передаёт значение p (номер страницы или — в некоторых случаях — маркер вроде "left-ellipsis") в обработчик onClickPage.
             onClick={() => onClickPage(p)}
-            className={`px-3 py-1 border rounded ${p === current ? "font-bold bg-gray-200" : ""}`}
+            className={`px-3 py-1 border rounded ${p === current ? "font-bold bg-gray-200" : ""} cursor-pointer`}
           >
             {p}
           </button>

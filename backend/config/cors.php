@@ -10,6 +10,7 @@ return [
     ],
     'allowed_methods' => ['*'],
     'allowed_origins' => [
+        'http://localhost:3000',
         'http://shopper.local',
         'http://shopper.local:5173',
         'http://localhost:8000',

@@ -27,6 +27,8 @@ import { categories } from "../../../../categories.js";
  */
 
 export const Select = ({
+  label,
+  id,
   options,
   value,
   onChange,
@@ -37,6 +39,7 @@ export const Select = ({
   arrowClassName = "",
   ...rest
 }) => {
+  const selectId = id;
   const opts =
     options && options.length > 0
       ? options
@@ -51,24 +54,26 @@ export const Select = ({
     const val = e.target.value;
     if (typeof onChange === "function") onChange(val);
     else if (typeof onSelectChange === "function") onSelectChange(val);
-    console.log("Select: handleChange event, value=", val);
   };
 
   return (
     <div>
+      {label ? (
+        <label htmlFor={selectId} className="block text-lg mt-3 mb-2">
+          {label}
+        </label>
+      ) : null}
       <div className={`relative ${wrapperClassName}`}>
         <select
+          id={selectId}
           className={`${className}`}
           onChange={handleChange}
           value={value ?? ""}
           {...rest}
         >
-          {placeholder && !opts.find((o) => String(o.value) === "") ? (
-            <option value="">{placeholder}</option>
-          ) : null}
           {opts.map((opt) => (
             <option
-              className="text-gray-800 bg-white text-sm"
+              className="text-sm"
               key={String(opt.value)}
               value={opt.value}
             >

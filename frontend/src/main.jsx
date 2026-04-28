@@ -50,11 +50,11 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")).render(
   //глобальные провайдеры обеспечивают доступность контекста во всём приложении
-  <AuthProvider>
-    <SavedProvider>
-      <CartProvider>
+  <CartProvider>
+    <AuthProvider>
+      <SavedProvider>
         <RouterProvider router={router} />
-      </CartProvider>
-    </SavedProvider>
-  </AuthProvider>,
+      </SavedProvider>
+    </AuthProvider>
+  </CartProvider>,
 );
