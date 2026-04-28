@@ -220,7 +220,7 @@ export const Shop = () => {
   ];
 
   const sortOptions = [
-    { value: "", label: "Sort by" },
+    { value: "", label: "Sort by price" },
     { value: "price_asc", label: "Price: low to high" },
     { value: "price_desc", label: "Price: high to low" },
   ];
@@ -416,7 +416,8 @@ export const Shop = () => {
             </div>
 
             <Select
-              placeholder="Select by category"
+              label="Select by category:"
+              id="selectByCategory"
               options={categoryOptions}
               value={valueForSelect}
               onChange={(v) => onSelectCategory(v)}
@@ -426,7 +427,8 @@ export const Shop = () => {
             />
 
             <Select
-              placeholder="Sort by"
+              id="selectByPrice"
+              label="Select by price:"
               options={sortOptions}
               value={sort}
               onChange={(v) => onChangeSort(v)}
@@ -436,10 +438,10 @@ export const Shop = () => {
             />
 
             <Trackbar
-              min={0}
+              min={10}
               max={1000}
               value={priceMax}
-              onChange={(v) => setPriceMax(v)} // live UI only; requests use debouncedPriceMax
+              onChange={(v) => setPriceMax(v)}
               onFilter={(v) => onTrackFilter(v)}
             />
 

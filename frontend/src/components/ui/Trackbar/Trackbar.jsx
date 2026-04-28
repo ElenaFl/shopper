@@ -20,24 +20,18 @@ import styles from "./Trackbar.module.css";
  * - Ползунку задан aria-label="Max price"
  */
 
-export const Trackbar = ({
-  min = 0,
-  max = 1000,
-  value = 1000,
-  onChange,
-  onFilter,
-}) => {
+export const Trackbar = ({ min = 10, max = 1000, value = 500, onChange }) => {
   const handleChange = (e) => {
     const v = Number(e.target.value);
     if (!Number.isNaN(v)) onChange?.(v);
   };
 
-  const handleFilter = () => {
-    onFilter?.(value);
-  };
-
   return (
     <div className={styles.trackbarWrapper}>
+      <div className="flex justify-between">
+        <div>{min}</div>
+        <div>{max}</div>
+      </div>
       <input
         type="range"
         min={min}
@@ -47,11 +41,8 @@ export const Trackbar = ({
         className={styles.trackbar}
         aria-label="Max price"
       />
-      <div className={styles.controls}>
-        <p>Price: 0 — ${value}</p>
-        <button className={styles.filterButton} onClick={handleFilter}>
-          Filter
-        </button>
+      <div className="text-lg">
+        <p>Price: ${value}</p>
       </div>
     </div>
   );
