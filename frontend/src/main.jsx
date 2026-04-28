@@ -20,7 +20,7 @@ import { Account } from "./pages/auth/Account.jsx";
 import { ResetPassword } from "./pages/auth/ResetPassword.jsx";
 import { CartProvider } from "./context/cart/CartProvider.jsx";
 import { AuthProvider } from "./context/auth/AuthProvider.jsx";
-import { Admin } from "./pages/admin/Admin.jsx";
+// import { Admin } from "./pages/admin/Admin.jsx";
 import { SavedProvider } from "./context/save/SavedProvider.jsx";
 
 // Определение маршрутов
@@ -41,9 +41,9 @@ const router = createBrowserRouter([
       { path: "products/:id", element: <ProductDetails /> },
       { path: "cart", element: <Cart /> },
       { path: "checkout", element: <Checkout /> },
-      { path: "orderDetails", element: <OrderDetails /> },
+      { path: "orderDetails/:id", element: <OrderDetails /> },
       { path: "*", element: <Page404 /> },
-      { path: "admin", element: <Admin /> },
+      { path: "admin", element: <Account /> },
     ],
   },
 ]);
