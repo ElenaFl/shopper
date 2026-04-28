@@ -1,6 +1,10 @@
 # SHOPPER
 
-- это интернет‑магазин с backend на Laravel и frontend на React + Vite. Проект содержит адаптивный UI, сборку через Vite и базовую архитектуру frontend/backend для локальной разработки и деплоя.
+Shopper - интернет‑магазин с backend на Laravel и frontend на React + Vite. Проект содержит адаптивный UI, сборку через Vite и базовую архитектуру frontend/backend для локальной разработки и деплоя.
+
+<p style="text-align:center">
+   <img src="./frontend/docs/screen.png" alt="SHOPPER screenshot"/> 
+</p>
 
 ## Технологии
 
