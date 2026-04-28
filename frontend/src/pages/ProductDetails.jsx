@@ -471,9 +471,45 @@ export const ProductDetails = () => {
     }
   };
 
+  const existingInCart = cart.find((i) => Number(i.id) === productId);
+  const desiredQty = Number(local.count) > 0 ? Number(local.count) : 1;
+  const inCartQty = existingInCart ? Number(existingInCart.quantity) : 0;
+  // флаг: в корзине уже есть такой же товар с такой же количеством
+  const isSameAsCart = Boolean(existingInCart) && inCartQty === desiredQty;
+  // комбинированное disabled для кнопки
+  const addBtnDisabled = isProcessingAdd || isSameAsCart;
+
+  // const handleAddOrUpdate = async () => {
+  //   if (!product) return;
+  //   const qty = Number(local.count) > 0 ? Number(local.count) : 1;
+  //   setIsProcessingAdd(true);
+  //   try {
+  //     if (local.isAdded) {
+  //       await updateQuantity(productId, qty);
+  //     } else {
+  //       const itemPrice = Number(priceInfo?.final ?? product.price ?? 0);
+  //       await addToCart({
+  //         id: Number(product.id ?? product.product_id),
+  //         title: product.title ?? product.name ?? "",
+  //         price: itemPrice,
+  //         img: product.img ?? product.img_url ?? null,
+  //         quantity: qty,
+  //         sku: product.sku ?? product.SKU ?? null,
+  //       });
+  //       setLocal((prev) => ({ ...prev, isAdded: true }));
+  //     }
+  //   } catch (e) {
+  //     console.error("add/update cart error", e);
+  //   } finally {
+  //     setIsProcessingAdd(false);
+  //   }
+  // };
+
   const handleAddOrUpdate = async () => {
     if (!product) return;
-    const qty = Number(local.count) > 0 ? Number(local.count) : 1;
+    const qty = desiredQty;
+    // если уже в корзине и количество такое же — не делаем ничего
+    if (isSameAsCart) return;
     setIsProcessingAdd(true);
     try {
       if (local.isAdded) {
@@ -885,13 +921,17 @@ export const ProductDetails = () => {
 
               <button
                 onClick={handleAddOrUpdate}
-                disabled={isProcessingAdd}
+                disabled={addBtnDisabled}
                 className={
                   addButtonClass +
-                  (isProcessingAdd ? " opacity-50 cursor-not-allowed" : "")
+                  (addBtnDisabled ? " opacity-50 cursor-not-allowed" : "")
                 }
               >
-                {isProcessingAdd ? "Processing..." : "TO CART"}
+                {isProcessingAdd
+                  ? "Processing..."
+                  : isSameAsCart
+                    ? "IN CART"
+                    : "TO CART"}
               </button>
             </div>
 
