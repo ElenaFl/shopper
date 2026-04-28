@@ -440,7 +440,26 @@ export const Cart = () => {
 
     // если купон не найден — показывает ошибку.
     setCouponApplying(false);
-    setCouponError(serverRes.error || "Invalid coupon code.");
+    setCouponApplying(false);
+    const rawErr = serverRes && serverRes.error ? String(serverRes.error) : "";
+    let cleaned = "";
+    try {
+      // Парсим как HTML и извлекаем текстовое содержимое (удаляем теги)
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rawErr, "text/html");
+      cleaned =
+        doc && doc.body && doc.body.textContent
+          ? doc.body.textContent.trim()
+          : rawErr.trim();
+    } catch (e) {
+      cleaned = rawErr.replace(/\s+/g, " ").trim();
+    }
+    const finalMsg = cleaned
+      ? cleaned.length > 200
+        ? cleaned.slice(0, 200) + "…"
+        : cleaned
+      : "Invalid coupon code.";
+    setCouponError(finalMsg);
   };
 
   //сбрасывает купон и скидку
