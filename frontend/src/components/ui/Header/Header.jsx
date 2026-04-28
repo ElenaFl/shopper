@@ -145,14 +145,41 @@ export const Header = () => {
               </svg>
             </Link>
             {!checking && user ? (
-              <div className="h-7 w-70 ml-4 hidden md:flex items-center">
+              <div className="h-7 w-90 ml-4 hidden md:flex items-center">
+                {" "}
                 <span
-                  className="text-[#A18A68] italic font-serif text-2xl font-light transition-opacity duration-300 opacity-100"
+                  className="text-[#A18A68] italic font-serif text-2xl font-light transition-opacity duration-300 opacity-100 flex items-center gap-2"
                   aria-live="polite"
+                  style={{ lineHeight: 1 }}
                 >
+                  {" "}
                   <span className="mr-1">Welcome,</span>{" "}
-                  {String(user?.name || "").split(" ")[0]}
-                </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {" "}
+                    <span>{String(user?.name || "").split(" ")[0]}</span>{" "}
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="#A18A68"
+                      aria-hidden="true"
+                      focusable="false"
+                      style={{
+                        display: "inline-block",
+                        verticalAlign: "text-bottom",
+                      }}
+                    >
+                      {" "}
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6.01 4.01 4 6.5 4c1.74 0 3.41.81 4.5 2.09C12.09 4.81 13.76 4 15.5 4 17.99 4 20 6.01 20 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />{" "}
+                    </svg>{" "}
+                  </span>{" "}
+                </span>{" "}
               </div>
             ) : (
               <div className="h-7 w-70 ml-4 hidden md:flex items-center" />
