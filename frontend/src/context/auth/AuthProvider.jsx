@@ -182,7 +182,7 @@ export const AuthProvider = ({ children }) => {
       try {
         // clear in-memory + localStorage
         if (typeof clearCart === "function") {
-          clearCart();
+          clearCart({ notify: false });
         } else {
           try {
             localStorage.removeItem("shopper_cart");

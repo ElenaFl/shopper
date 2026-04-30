@@ -11,4 +11,7 @@ export const CartContext = createContext({
   removeFromCart: () => {},
   updateQuantity: () => {},
   clearCart: () => {},
+  syncGuestToServer: () => Promise.resolve(false),
+  fetchServerCart: async () => [],
+  showAlert: () => {},
 });

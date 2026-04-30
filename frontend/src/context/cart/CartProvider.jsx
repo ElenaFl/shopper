@@ -231,6 +231,11 @@ export const CartProvider = ({ children }) => {
       return;
     }
 
+    // Был ли товар в корзине ДО обновления?
+    const existsBefore =
+      Array.isArray(cart) && cart.some((i) => toNum(i.id) === itemId);
+
+    // Локальное обновление корзины
     setCart((prev) => {
       const existing = prev.find((i) => toNum(i.id) === itemId);
       if (existing) {
@@ -243,6 +248,26 @@ export const CartProvider = ({ children }) => {
       return [...prev, { ...item, id: itemId, quantity: item.quantity || 1 }];
     });
 
+    // Показать уведомление в зависимости от existsBefore
+    try {
+      if (existsBefore) {
+        showAlert({
+          variant: "success",
+          title: "Количество обновлено",
+          subtitle: item.title || "",
+        });
+      } else {
+        showAlert({
+          variant: "info",
+          title: "Добавлено в корзину",
+          subtitle: item.title || "",
+        });
+      }
+    } catch (e) {
+      console.warn("CartProvider: showAlert failed", e);
+    }
+
+    // Сетевая синхронизация
     try {
       const pending = sessionStorage.getItem("shopper_merge_pending");
       if (pending) {
@@ -395,12 +420,18 @@ export const CartProvider = ({ children }) => {
     })();
   };
 
-  const clearCart = useCallback(() => {
+  const clearCart = useCallback((options = {}) => {
+    // options может быть boolean (notify) или объект { notify: boolean, source: string }
+    const { notify = true } =
+      typeof options === "object" ? options : { notify: Boolean(options) };
+
     setCart([]);
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch (e) {}
-    showAlert({ variant: "info", title: "Корзина очищена", subtitle: "" });
+    if (notify) {
+      showAlert({ variant: "info", title: "Корзина очищена", subtitle: "" });
+    }
   }, []);
 
   const syncGuestToServer = useCallback(async () => {
@@ -500,6 +531,7 @@ export const CartProvider = ({ children }) => {
         clearCart,
         syncGuestToServer,
         fetchServerCart,
+        showAlert,
       }}
     >
       {children}
