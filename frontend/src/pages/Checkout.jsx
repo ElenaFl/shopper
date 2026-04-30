@@ -22,9 +22,10 @@ import { Select } from "../components/ui/Select/Select.jsx";
 const genOrderId = () => `order-${Date.now()}`;
 
 export const Checkout = () => {
-  const { cart, clearCart } = useContext(CartContext) || {
+  const { cart, clearCart, showAlert } = useContext(CartContext) || {
     cart: [],
     clearCart: undefined,
+    showAlert: () => {},
   };
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -172,7 +173,12 @@ export const Checkout = () => {
       } catch (_) {}
       if (typeof clearCart === "function") {
         try {
-          clearCart();
+          clearCart({ notify: false });
+          showAlert({
+            variant: "success",
+            title: "Заказ оформлен",
+            subtitle: "Спасибо",
+          });
         } catch (_) {}
       }
       navigate(`/orderDetails/${created.id}`);
@@ -223,13 +229,6 @@ export const Checkout = () => {
               />
             </div>
 
-            <Select
-              className="w-full pt-7 pb-3 border-b border-[#D8D8D8] text-[#c6c2c2] appearance-none"
-              arrowClassName="w-[16px] h-[16px] absolute top-[32px] right-3 pointer-events-none"
-              value={form.country}
-              onChange={(v) => updateField("country", v)}
-            />
-
             <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
               <input
                 type="text"
@@ -263,20 +262,10 @@ export const Checkout = () => {
             <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
               <input
                 type="text"
-                name="postCode"
-                placeholder="Postcode / ZIP *"
-                value={form.postCode}
-                onChange={(e) => updateField("postCode", e.target.value)}
-              />
-            </div>
-
-            <div className="pt-7 pb-3 border-b border-[#D8D8D8]">
-              <input
-                type="text"
-                name="city"
-                placeholder="Town / City *"
-                value={form.city}
-                onChange={(e) => updateField("city", e.target.value)}
+                name="country"
+                placeholder="Country*"
+                value={form.country}
+                onChange={(e) => updateField("country", e.target.value)}
               />
             </div>
 
@@ -305,8 +294,9 @@ export const Checkout = () => {
                 name="notes"
                 placeholder="Order notes"
                 value={form.notes}
+                max={5}
                 onChange={(e) => updateField("notes", e.target.value)}
-                className="w-full"
+                className="w-full border-1 border-gray-200 resize-none overflow-auto rounded-sm"
               />
             </div>
           </form>

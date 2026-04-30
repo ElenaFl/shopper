@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useState, useEffect, useRef } from "react";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/auth/useAuth.js";
 import { useSaved } from "../../../context/save/useSaved.js";
@@ -80,6 +80,17 @@ export const Header = () => {
     ? cart.reduce((s, p) => s + (Number(p.quantity) || 0), 0)
     : 0;
 
+  const heartStyle = {
+    display: "inline-block",
+    verticalAlign: "text-bottom",
+    opacity: 0,
+    transform: "translateY(4px) scale(0.98)",
+    transition:
+      "opacity 450ms ease-out 300ms, transform 450ms cubic-bezier(.2,.9,.3,1) 300ms",
+  };
+
+  const heartVisibleStyle = { opacity: 1, transform: "translateY(0) scale(1)" };
+
   // проверка, чтобы понять, на домашней ли мы странице.
   // используется для изменения стилей (например, убрать/поставить нижнюю границу).
   const isHome = location.pathname === "/" || location.pathname === "";
@@ -116,6 +127,46 @@ export const Header = () => {
     // по умолчанию (не админ / неуспешный запрос) — переходим на страницу аккаунта.
     navigate("/account");
   };
+
+  const [showHeart, setShowHeart] = useState(false);
+  const showTimerRef = useRef(null);
+  const peakTimerRef = useRef(null);
+
+  useEffect(() => {
+    const delay = 900;
+    // задержка перед появлением (ms)
+    const sweepDuration = 1200; // продолжительность sweep-эффекта в CSS (ms)
+    const peakOffset = Math.round(sweepDuration * 0.4); // когда запускать пик (ms после начала sweep)
+
+    // очистка предыдущих таймеров clearTimeout(showTimerRef.current); clearTimeout(peakTimerRef.current);
+
+    if (user && !user.is_admin) {
+      // планируем показать сердце
+      showTimerRef.current = setTimeout(() => {
+        // ставим состояние асинхронно, чтобы избегать предупреждений линтера
+        Promise.resolve().then(() => setShowHeart(true));
+
+        // запланировать пик — через peakOffset после запуска sweep
+        peakTimerRef.current = setTimeout(() => {
+          const el = document.querySelector(".heart-sparkle");
+          if (el) {
+            el.classList.add("svg-peak");
+            setTimeout(() => el.classList.remove("svg-peak"), 320);
+          }
+        }, peakOffset);
+      }, delay);
+    } else {
+      // скрыть асинхронно
+      Promise.resolve().then(() => setShowHeart(false));
+      const el = document.querySelector(".heart-sparkle");
+      if (el) el.classList.remove("svg-peak");
+    }
+
+    return () => {
+      clearTimeout(showTimerRef.current);
+      clearTimeout(peakTimerRef.current);
+    };
+  }, [user]);
 
   return (
     <header className="pt-17 fixed top-0 left-0 right-0 z-40 bg-white ">
@@ -162,22 +213,78 @@ export const Header = () => {
                     }}
                   >
                     {" "}
-                    <span>{String(user?.name || "").split(" ")[0]}</span>{" "}
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="#A18A68"
-                      aria-hidden="true"
-                      focusable="false"
-                      style={{
-                        display: "inline-block",
-                        verticalAlign: "text-bottom",
-                      }}
-                    >
-                      {" "}
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6.01 4.01 4 6.5 4c1.74 0 3.41.81 4.5 2.09C12.09 4.81 13.76 4 15.5 4 17.99 4 20 6.01 20 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />{" "}
-                    </svg>{" "}
+                    <span className="user-name">
+                      {String(user?.name || "").split(" ")[0]}
+                    </span>{" "}
+                    {/* decorative heart shown only for non-admin users */}{" "}
+                    {user && !user.is_admin && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        {/* декоративное */}
+                        <span
+                          aria-hidden="true"
+                          className={`heart-sparkle ${showHeart ? "sparkle-on" : ""}`}
+                          style={{
+                            display: "inline-block",
+                            lineHeight: 0,
+                            ...heartStyle,
+                            ...(showHeart ? heartVisibleStyle : {}),
+                          }}
+                        >
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            focusable="false"
+                          >
+                            <defs>
+                              <linearGradient
+                                id="heartGrad"
+                                x1="0"
+                                x2="0"
+                                y1="0"
+                                y2="1"
+                              >
+                                <stop offset="0%" stopColor="#FFD9B3" />
+                                <stop offset="50%" stopColor="#F1B87A" />
+                                <stop offset="100%" stopColor="#A18A68" />
+                              </linearGradient>
+                              <filter
+                                id="heartShadow"
+                                x="-50%"
+                                y="-50%"
+                                width="200%"
+                                height="200%"
+                              >
+                                <feDropShadow
+                                  dx="0"
+                                  dy="1"
+                                  stdDeviation="1"
+                                  floodColor="#000"
+                                  floodOpacity="0.24"
+                                />
+                              </filter>
+                            </defs>
+
+                            <path
+                              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6.01 4.01 4 6.5 4c1.54 0 3.04.99 3.57 2.36h.86C14.46 4.99 15.96 4 17.5 4 19.99 4 22 6.01 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                              fill="url(#heartGrad)"
+                              filter="url(#heartShadow)"
+                            />
+                            <path
+                              d="M7.5 6.5c.9-.9 2.2-1.2 3.3-.7.3.12.6.28.8.5.2-.22.5-.38.8-.5 1.1-.5 2.4-.2 3.3.7.6.6.8 1.4.6 2.1-.2.7-.8 1.2-1.4 1.6-.7.4-1.5.5-2.3.2-.4-.15-.8-.4-1.1-.7-.3.3-.7.55-1.1.7-.8.3-1.6.2-2.3-.2-.6-.4-1.2-.9-1.4-1.6-.2-.7 0-1.5.6-2.1z"
+                              fill="rgba(255,255,255,0.28)"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                    )}{" "}
                   </span>{" "}
                 </span>{" "}
               </div>

@@ -33,6 +33,7 @@ function getXsrf() {
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
 const CURRENCY_SYMBOLS = { $: "$", RUB: "₽", EUR: "€", GBP: "£" };
+
 function currencySymbolFromCode(code) {
   if (!code) return null;
   return CURRENCY_SYMBOLS[String(code).toUpperCase()] || code;
@@ -96,12 +97,15 @@ export const Account = () => {
   const [aggReviews, setAggReviews] = useState([]);
   const [rLoading, setRLoading] = useState(false);
   const [rError, setRError] = useState(null);
-  const aggLoadedProducts = useRef(new Set());
 
   const [productsMeta, setProductsMeta] = useState(null);
   const [categories, setCategories] = useState([]);
 
   const [showDrawer, setShowDrawer] = useState(false);
+
+  const base = "rounded-lg px-3 border-1 font-bold";
+  const enabled = "cursor-pointer border-black";
+  const disabled = "cursor-not-allowed bg-gray-200 text-gray-500 opacity-50";
 
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -121,6 +125,7 @@ export const Account = () => {
   });
 
   const setCreateField = (k, v) => setCreateForm((s) => ({ ...s, [k]: v }));
+
   const resetCreateForm = () =>
     setCreateForm({
       title: "",
@@ -165,6 +170,31 @@ export const Account = () => {
   });
 
   const setEditField = (k, v) => setEditForm((s) => ({ ...s, [k]: v }));
+
+  const origEditRef = useRef(null);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    const orig = origEditRef.current;
+    if (!orig) {
+      setHasChanges(false);
+      return;
+    }
+    const normalize = (v) => (v == null ? "" : String(v));
+    const changed =
+      normalize(orig.title) !== normalize(editForm.title) ||
+      normalize(orig.category_id) !== normalize(editForm.category_id) ||
+      normalize(orig.price) !== normalize(editForm.price) ||
+      normalize(orig.sku) !== normalize(editForm.sku) ||
+      normalize(orig.description) !== normalize(editForm.description) ||
+      normalize(orig.weight) !== normalize(editForm.weight) ||
+      normalize(orig.material) !== normalize(editForm.material) ||
+      normalize(orig.colours) !== normalize(editForm.colours) ||
+      String(orig.is_popular) !== String(editForm.is_popular) ||
+      normalize(orig.currency) !== normalize(editForm.currency) ||
+      normalize(orig.discount) !== normalize(editForm.discount);
+    setHasChanges(Boolean(changed));
+  }, [editForm]);
 
   useEffect(() => {
     const c = new AbortController();
@@ -312,27 +342,27 @@ export const Account = () => {
       <div className="admin-table-wrapper">
         <table className="min-w-full">
           <thead>
-            <tr>
+            <tr className="text-left">
               <th>#</th>
               <th>Title</th>
               <th>Image</th>
-              <th>Image_path</th>
+              {/* <th>Image_path</th> */}
               <th>SKU</th>
               <th>Price</th>
               <th>Final Price</th>
-              <th>Currency</th>
+              {/* <th>Currency</th> */}
               <th>Discount</th>
               <th>Weight</th>
               <th>Material</th>
               <th>Color</th>
               <th>Popularity</th>
-              <th>Category ID</th>
+              {/* <th>Category ID</th> */}
             </tr>
           </thead>
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className="border-b border-[#e5e7eb]">
-                <td>{p.id}</td>
+                <td>{p.id}.</td>
                 <td
                   onDoubleClick={() => {
                     setEditForm({
@@ -349,16 +379,33 @@ export const Account = () => {
                       colours: p.colours ?? "",
                       is_popular: !!p.is_popular,
                       currency: p.currency ?? "$",
-                      discount: p.discount
-                        ? p.discount.type === "percent"
+                      discount:
+                        p.discount && p.discount.type === "percent"
                           ? p.discount.value
-                          : ""
-                        : "",
+                          : "",
                     });
+                    origEditRef.current = {
+                      id: p.id,
+                      title: p.title ?? "",
+                      category_id: p.category_id ?? p.category?.id ?? "",
+                      price: String(p.price ?? ""),
+                      sku: p.sku ?? "",
+                      description: p.description ?? "",
+                      img_url: p.img_url ?? p.img ?? null,
+                      weight: p.weight ?? "",
+                      material: p.material ?? "",
+                      colours: p.colours ?? "",
+                      is_popular: !!p.is_popular,
+                      currency: p.currency ?? "$",
+                      discount:
+                        p.discount && p.discount.type === "percent"
+                          ? String(p.discount.value)
+                          : "",
+                    };
+                    setHasChanges(false);
                     setEditMode(p.id);
                     setShowDrawer(true);
                   }}
-                  style={{ cursor: "pointer", userSelect: "none" }}
                 >
                   {p.title}
                 </td>
@@ -385,10 +432,12 @@ export const Account = () => {
                     />
                   )}
                 </td>
-                <td>{p.img}</td>
+                {/* <td>{p.img}</td> */}
                 <td>{p.sku}</td>
                 <td>
                   {typeof p.price === "number" ? p.price.toFixed(2) : p.price}
+                  {(p.currency_symbol ?? currencySymbolFromCode(p.currency)) ||
+                    "—"}
                 </td>
                 <td>
                   {p.final_price != null
@@ -400,11 +449,13 @@ export const Account = () => {
                       : typeof p.price === "number"
                         ? p.price.toFixed(2)
                         : p.price}
-                </td>
-                <td>
                   {(p.currency_symbol ?? currencySymbolFromCode(p.currency)) ||
                     "—"}
                 </td>
+                {/* <td> */}
+                {/* {(p.currency_symbol ?? currencySymbolFromCode(p.currency)) ||
+                    "—"} */}
+                {/* </td> */}
                 <td>
                   {(() => {
                     const d =
@@ -444,7 +495,7 @@ export const Account = () => {
                 <td>{p.material ?? "—"}</td>
                 <td>{p.colours ?? "—"}</td>
                 <td>{p.is_popular ?? "—"}</td>
-                <td>{p.category_id ?? p.category?.id ?? "—"}</td>
+                {/* <td>{p.category_id ?? p.category?.id ?? "—"}</td> */}
               </tr>
             ))}
           </tbody>
@@ -558,6 +609,10 @@ export const Account = () => {
     if (!editForm.id) return;
     if (!editForm.title || !editForm.price || !editForm.category_id) {
       alert("Заполните обязательные поля: title, price, category");
+      return;
+    }
+    if (!hasChanges) {
+      alert("Внесите изменения перед обновлением");
       return;
     }
     setEditing(true);
@@ -961,16 +1016,35 @@ export const Account = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDashboard]);
 
+  useEffect(() => {
+    if (activeDashboard === "Products") {
+      loadProductsPage(1, true);
+      return;
+    }
+    if (activeDashboard === "Reviews") {
+      loadAdminReviews(1);
+      return;
+    }
+  }, [activeDashboard]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="my-62 mb-72">
       <div className="max-w-125 mx-auto">
-        <h1 className="text-[33px] font-medium text-center mb-16">
-          My account
-        </h1>
-
+        {user && user.is_admin ? (
+          <div className="account-header">
+            {" "}
+            <h1 className="admin-banner admin-banner--large">
+              Админ панель
+            </h1>{" "}
+          </div>
+        ) : (
+          <h1 className="text-[33px] font-medium text-center mb-6">
+            My account
+          </h1>
+        )}
         {/* GitHub OAuth button */}
         {!user && (
-          <div className="max-w-125 mx-auto mb-6">
+          <div className="max-w-125 mx-auto mb-10">
             {" "}
             <button
               type="button"
@@ -1003,7 +1077,7 @@ export const Account = () => {
       </div>
 
       {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
-      <div className="h-7 mb-4 text-center">
+      <div className=" mb-4 text-center">
         {loading ? <div>Loading...</div> : null}
       </div>
 
@@ -1032,7 +1106,36 @@ export const Account = () => {
 
           {activeDashboard === "Products" && (
             <section>
-              <h2>Products</h2>
+              <div className="pt-2 flex items-center justify-between mb-4">
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    // очистим форму создания и откроем Drawer в режиме создания
+                    setCreateForm({
+                      title: "",
+                      category_id: "",
+                      price: "",
+                      sku: "",
+                      description: "",
+                      img: null,
+                      img_url: null,
+                      weight: "",
+                      material: "",
+                      colours: "",
+                      is_popular: false,
+                      currency: "$",
+                      discount: "",
+                    });
+                    setEditMode(null);
+                    setShowDrawer(true);
+                  }}
+                  className="py-2 px-3 rounded bg-black text-white hover:bg-gray-700 cursor-pointer hover:text-white"
+                >
+                  {" "}
+                  Create product{" "}
+                </button>{" "}
+              </div>
               {pLoading ? (
                 <div>Loading…</div>
               ) : pError ? (
@@ -1686,7 +1789,9 @@ export const Account = () => {
           <div className="form-row">
             <label className="form-label">Description</label>
             <textarea
-              className="form-textarea"
+              className="form-textarea resize-none overflow-auto"
+              rows={5}
+              maxLength={500}
               value={editMode ? editForm.description : createForm.description}
               onChange={(e) =>
                 editMode
@@ -1818,8 +1923,8 @@ export const Account = () => {
 
                 <button
                   type="submit"
-                  className="btn-primary"
-                  disabled={editing}
+                  disabled={!hasChanges}
+                  className={`${base} ${!hasChanges ? disabled : enabled}`}
                 >
                   {editing ? "Updating..." : "Update"}
                 </button>

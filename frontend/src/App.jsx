@@ -6,19 +6,26 @@ import { Footer } from "./components/ui/Footer/Footer.jsx";
 import { SavedDrawer } from "./components/ui/SavedDrawer/SavedDrawer.jsx";
 import { ChatWidget } from "./components/ui/ChatWidget/ChatWidget.jsx";
 import "./index.css";
+import { useAuth } from "./context/auth/useAuth";
+import ScrollToTop from "./components/ui/ScrollToTop/ScrollToTop.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://shopper.local";
 
-const App = () => (
-  <StrictMode>
-    <Header />
-    <main>
-      <Outlet />
-    </main>
-    <Footer />
-    <SavedDrawer apiBase={API_BASE} />
-    <ChatWidget />
-  </StrictMode>
-);
+const App = () => {
+  const { user, checking } = useAuth();
+
+  return (
+    <StrictMode>
+      <Header />
+      <main>
+        <Outlet />
+        <ScrollToTop />
+      </main>
+      <Footer />
+      <SavedDrawer apiBase={API_BASE} />
+      {!checking && user && !user.is_admin && <ChatWidget />}
+    </StrictMode>
+  );
+};
 
 export default App;
