@@ -843,6 +843,24 @@ export const Account = () => {
     return typeof password === "string" && password.length >= 6;
   };
 
+  // для полей форм входа и регистрации
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+
+  // вычисляемые флаги:
+  const canSubmitLogin =
+    isValidEmail(loginEmail) && isValidPassword(loginPassword) && !loading;
+  const canSubmitRegister =
+    isValidName(regName) &&
+    isValidEmail(regEmail) &&
+    isValidPassword(regPassword) &&
+    regPassword === regConfirmPassword &&
+    !loading;
+
   // вспомогательная функция для обработки ошибок ответа сервера (формат Laravel)
   const handleResponseErrors = async (res) => {
     const data = await res.json().catch(() => ({}));
@@ -1524,47 +1542,113 @@ export const Account = () => {
 
           {activeCategory === "Sign in" && (
             <div className="text-[#707070]" id="sign-content">
-              <form onSubmit={handleSubmit}>
-                <input
-                  type="email"
-                  name="email"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-                  placeholder="Email*"
-                  required
-                  onInput={clearErrorOnInput}
-                />
-                {formErrors.email && (
-                  <div className="text-red-500 text-sm mb-4">
-                    {formErrors.email}
-                  </div>
-                )}
-                <input
-                  type="password"
-                  name="password"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-4"
-                  placeholder="Password*"
-                  required
-                  onInput={clearErrorOnInput}
-                />
-                {formErrors.password && (
-                  <div className="text-red-500 text-sm mb-4">
-                    {formErrors.password}
-                  </div>
-                )}
-
-                <div className="w-[27%] flex items-center justify-between gap-x-2 mb-30">
-                  <input type="checkbox" id="rememberMe" className="w-4 h-4" />
-                  <label htmlFor="rememberMe">Remember me</label>
+              {" "}
+              <form
+                onSubmit={handleSubmit}
+                noValidate
+                className="w-full mx-auto"
+              >
+                {" "}
+                <div className="mb-4">
+                  {" "}
+                  <label
+                    htmlFor="login-email"
+                    className="block mb-1 text-sm text-gray-700"
+                  >
+                    {" "}
+                    Email{" "}
+                  </label>{" "}
+                  <input
+                    id="login-email"
+                    type="email"
+                    name="email"
+                    value={loginEmail}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setLoginEmail(v);
+                      clearErrorOnInput(e);
+                      // live validation
+                      if (!isValidEmail(v.trim())) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          email: "Введите корректный email",
+                        }));
+                      } else {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.email;
+                          return n;
+                        });
+                      }
+                    }}
+                    className="w-full pb-3 border-b border-[#D8D8D8] mb-2"
+                    placeholder="Email*"
+                    required
+                  />{" "}
+                  {formErrors.email && (
+                    <div className="text-red-500 text-sm mb-2">
+                      {formErrors.email}
+                    </div>
+                  )}{" "}
                 </div>
-
+                <div className="mb-4">
+                  <label
+                    htmlFor="login-password"
+                    className="block mb-1 text-sm text-gray-700"
+                  >
+                    Password
+                  </label>
+                  <input
+                    id="login-password"
+                    type="password"
+                    name="password"
+                    value={loginPassword}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setLoginPassword(v);
+                      clearErrorOnInput(e);
+                      // live validation
+                      if (!isValidPassword(v)) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          password:
+                            "Пароль должен содержать минимум 6 символов",
+                        }));
+                      } else {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.password;
+                          return n;
+                        });
+                      }
+                    }}
+                    className="w-full pb-3 border-b border-[#D8D8D8] mb-2"
+                    placeholder="Password*"
+                    required
+                  />
+                  {formErrors.password && (
+                    <div className="text-red-500 text-sm mb-2">
+                      {formErrors.password}
+                    </div>
+                  )}
+                </div>
+                <div className="w-[27%] flex items-center justify-between gap-x-2 mb-6">
+                  <input type="checkbox" id="rememberMe" className="w-4 h-4" />
+                  <label htmlFor="rememberMe" className="text-sm">
+                    Remember me
+                  </label>
+                </div>
                 <button
                   type="submit"
-                  className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm bg-black text-white hover:bg-white hover:text-black cursor-pointer"
-                  disabled={loading}
+                  disabled={
+                    !isValidEmail(loginEmail.trim()) ||
+                    !isValidPassword(loginPassword) ||
+                    loading
+                  }
+                  className={`block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm ${!isValidEmail(loginEmail.trim()) || !isValidPassword(loginPassword) || loading ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-black text-white hover:bg-white hover:text-black"}`}
                 >
-                  Sign in
+                  {loading ? "Signing..." : "Sign in"}
                 </button>
-
                 <Link
                   to="#"
                   className="block w-full py-4 px-10 text-center hover:border rounded-sm cursor-pointer bg-white text-black"
@@ -1576,75 +1660,205 @@ export const Account = () => {
           )}
 
           {activeCategory === "Register" && (
-            <form onSubmit={handleSubmitReg}>
+            <form
+              onSubmit={handleSubmitReg}
+              noValidate
+              className="w-full mx-auto"
+            >
+              {" "}
               <div className="text-[#707070]" id="additional-information">
-                <input
-                  type="text"
-                  name="name"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-                  placeholder="Name*"
-                  required
-                  onInput={clearErrorOnInput}
-                />
-                {formErrors.name && (
-                  <div className="text-red-500 text-sm mb-4">
-                    {formErrors.name}
-                  </div>
-                )}
-
-                <input
-                  type="email"
-                  name="email"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-1"
-                  placeholder="Email*"
-                  required
-                  onInput={clearErrorOnInput}
-                />
-                {formErrors.email && (
-                  <div className="text-red-500 text-sm mb-4">
-                    {formErrors.email}
-                  </div>
-                )}
-
-                <input
-                  type="password"
-                  name="password"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-12"
-                  placeholder="Password*"
-                  required
-                  onInput={clearErrorOnInput}
-                />
-                {formErrors.password && (
-                  <div className="text-red-500 text-sm mb-4">
-                    {formErrors.password}
-                  </div>
-                )}
-
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  className="w-full pb-3 border-b border-[#D8D8D8] mb-4"
-                  placeholder="Confirm password*"
-                  required
-                  onInput={clearErrorOnInput}
-                />
-                {formErrors.password_confirmation && (
-                  <div className="text-red-500 text-sm mb-4">
-                    {formErrors.password_confirmation}
-                  </div>
-                )}
-
+                {" "}
+                <div className="mb-4">
+                  {" "}
+                  <label
+                    htmlFor="reg-name"
+                    className="block mb-1 text-sm text-gray-700"
+                  >
+                    {" "}
+                    Name{" "}
+                  </label>{" "}
+                  <input
+                    id="reg-name"
+                    name="name"
+                    type="text"
+                    value={regName}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRegName(v);
+                      clearErrorOnInput(e);
+                      // live validation
+                      if (!isValidName(v)) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          name: "Имя минимум 2 буквы",
+                        }));
+                      } else {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.name;
+                          return n;
+                        });
+                      }
+                    }}
+                    className="w-full pb-3 border-b border-[#D8D8D8] mb-2"
+                    placeholder="Name*"
+                    required
+                  />{" "}
+                  {formErrors.name && (
+                    <div className="text-red-500 text-sm mb-2">
+                      {formErrors.name}
+                    </div>
+                  )}{" "}
+                </div>
+                <div className="mb-4">
+                  <label
+                    htmlFor="reg-email"
+                    className="block mb-1 text-sm text-gray-700"
+                  >
+                    Email
+                  </label>
+                  <input
+                    id="reg-email"
+                    name="email"
+                    type="email"
+                    value={regEmail}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRegEmail(v);
+                      clearErrorOnInput(e);
+                      // live validation
+                      if (!isValidEmail(v.trim())) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          email: "Введите корректный email",
+                        }));
+                      } else {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.email;
+                          return n;
+                        });
+                      }
+                    }}
+                    className="w-full pb-3 border-b border-[#D8D8D8] mb-2"
+                    placeholder="Email*"
+                    required
+                  />
+                  {formErrors.email && (
+                    <div className="text-red-500 text-sm mb-2">
+                      {formErrors.email}
+                    </div>
+                  )}
+                </div>
+                <div className="mb-4">
+                  <label
+                    htmlFor="reg-password"
+                    className="block mb-1 text-sm text-gray-700"
+                  >
+                    Password
+                  </label>
+                  <input
+                    id="reg-password"
+                    name="password"
+                    type="password"
+                    value={regPassword}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRegPassword(v);
+                      clearErrorOnInput(e);
+                      // live validation
+                      if (!isValidPassword(v)) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          password:
+                            "Пароль должен содержать минимум 6 символов",
+                        }));
+                      } else {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.password;
+                          return n;
+                        });
+                      }
+                      // also validate confirm if present
+                      if (regConfirmPassword && v !== regConfirmPassword) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          password_confirmation: "Пароли не совпадают",
+                        }));
+                      } else if (regConfirmPassword) {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.password_confirmation;
+                          return n;
+                        });
+                      }
+                    }}
+                    className="w-full pb-3 border-b border-[#D8D8D8] mb-2"
+                    placeholder="Password*"
+                    required
+                  />
+                  {formErrors.password && (
+                    <div className="text-red-500 text-sm mb-2">
+                      {formErrors.password}
+                    </div>
+                  )}
+                </div>
+                <div className="mb-4">
+                  <label
+                    htmlFor="reg-confirm"
+                    className="block mb-1 text-sm text-gray-700"
+                  >
+                    Confirm password
+                  </label>
+                  <input
+                    id="reg-confirm"
+                    name="confirmPassword"
+                    type="password"
+                    value={regConfirmPassword}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRegConfirmPassword(v);
+                      clearErrorOnInput(e);
+                      if (v !== regPassword) {
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          password_confirmation: "Пароли не совпадают",
+                        }));
+                      } else {
+                        setFormErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.password_confirmation;
+                          return n;
+                        });
+                      }
+                    }}
+                    className="w-full pb-3 border-b border-[#D8D8D8] mb-2"
+                    placeholder="Confirm password*"
+                    required
+                  />
+                  {formErrors.password_confirmation && (
+                    <div className="text-red-500 text-sm mb-2">
+                      {formErrors.password_confirmation}
+                    </div>
+                  )}
+                </div>
                 <div className="w-[32%] flex items-center justify-between gap-x-2 mb-4">
                   <input type="checkbox" id="registerMe" className="w-4 h-4" />
                   <label htmlFor="registerMe">I agree to Terms</label>
                 </div>
-
                 <button
                   type="submit"
-                  className="block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm cursor-pointer bg-black text-white hover:bg-white hover:text-black"
-                  disabled={loading}
+                  disabled={
+                    !isValidName(regName) ||
+                    !isValidEmail(regEmail.trim()) ||
+                    !isValidPassword(regPassword) ||
+                    regPassword !== regConfirmPassword ||
+                    loading
+                  }
+                  className={`block w-full text-center mb-3 mx-auto py-4 font-bold border rounded-sm ${!isValidName(regName) || !isValidEmail(regEmail.trim()) || !isValidPassword(regPassword) || regPassword !== regConfirmPassword || loading ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-black text-white hover:bg-white hover:text-black"}`}
                 >
-                  Register
+                  {loading ? "Registering..." : "Register"}
                 </button>
               </div>
             </form>
