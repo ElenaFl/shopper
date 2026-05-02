@@ -1,5 +1,7 @@
 # SHOPPER
 
+<a href="https://disk.yandex.ru/i/VwERpQ-IYTn70A" target="_blank"> <img src="./frontend/docs/preview.png" alt="Watch demo" style="max-width:100%;"/> </a>
+
 Shopper - интернет‑магазин с backend на Laravel и frontend на React + Vite. Проект содержит адаптивный UI, сборку через Vite и базовую архитектуру frontend/backend для локальной разработки и деплоя.
 
 <p style="text-align:center">
