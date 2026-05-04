@@ -40,9 +40,3 @@ npm install
 ## Сборка для production
 
 Собрать проект: npm run build
-
-## Структура проекта
-
-<p style="text-align:center">
-   <img src="./frontend/docs/screen.png" alt="SHOPPER screenshot"/> 
-</p>
